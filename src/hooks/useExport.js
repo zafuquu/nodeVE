@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { sanitizeTimelineClip } from '../utils/timelineClips';
 import { validateExportProject } from '../utils/projectValidation';
+import { resolveOutputLayers } from '../utils/graphLayers';
 
 function asNumber(value, fallback = 0) {
   const next = Number(value);
@@ -197,7 +198,6 @@ export function useExport() {
       const layers = resolvedLayers?.length > 0
         ? resolvedLayers
         : (() => {
-            const { resolveOutputLayers } = require('../utils/graphLayers');
             const { layers } = resolveOutputLayers(nodes, edges, null, {
               srcW: sourceNode.data.width || 1920,
               srcH: sourceNode.data.height || 1080,
