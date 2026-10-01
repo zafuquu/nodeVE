@@ -92,10 +92,10 @@ export function validateExportProject({
   if (outputNodes.length === 0) {
     errors.push('The node graph has no OUTPUT node. Connect the composition to an OUTPUT before exporting.');
   } else {
-    const adjacency = new Map();
-    for (const node of nodes) adjacency.set(node.id, []);
+    const reverseAdjacency = new Map();
+    for (const node of nodes) reverseAdjacency.set(node.id, []);
     for (const edge of edges || []) {
-      if (adjacency.has(edge.source)) adjacency.get(edge.source).push(edge.target);
+      if (reverseAdjacency.has(edge.target)) reverseAdjacency.get(edge.target).push(edge.source);
     }
     const sourceIds = new Set(nodes.filter((node) => node.type === 'source').map((node) => node.id));
     const reachesSource = (startId) => {
@@ -106,7 +106,7 @@ export function validateExportProject({
         if (visited.has(id)) continue;
         visited.add(id);
         if (sourceIds.has(id)) return true;
-        for (const next of adjacency.get(id) || []) queue.push(next);
+        for (const next of reverseAdjacency.get(id) || []) queue.push(next);
       }
       return false;
     };
