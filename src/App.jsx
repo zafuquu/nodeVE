@@ -263,25 +263,10 @@ function FlowEditor() {
 
       if (flow.clips && flow.clips.length > 0) {
         timeline.setTimelineClips(flow.clips);
-      } else if (flow.savedVideoPath) {
-        if (timeline.timelineClips.length === 0) {
-          const filename = flow.savedVideoPath.split(/[\\/]/).pop();
-          timeline.setTimelineClips([{
-            id: `clip-default`,
-            filename,
-            filepath: flow.savedVideoPath,
-            duration: 30,
-            width: 1920,
-            height: 1080,
-            fps: 60,
-            aspect: '16:9',
-            trimIn: 0,
-            trimOut: 30 * 1000,
-            trackType: 'video',
-            trackIndex: 1,
-            startOffset: 0
-          }]);
-        }
+      } else if (flow.savedVideoPath && timeline.timelineClips.length === 0) {
+        // Do not create an unprobed placeholder clip. A real timeline clip is
+        // created only when media metadata is available or when the template
+        // already contains explicit clips.
       }
 
       if (flow.viewport && reactFlowInstance) {
@@ -410,8 +395,8 @@ function FlowEditor() {
 
   // ── Source node data for VideoProvider ──────────────────
   const activeFilepath = timeline.activeClip?.filepath || graph.sourceNode?.data?.filepath || null;
-  const activeWidth = timeline.activeClip?.width || graph.sourceNode?.data?.width || 1920;
-  const activeHeight = timeline.activeClip?.height || graph.sourceNode?.data?.height || 1080;
+  const activeWidth = timeline.activeClip?.width || graph.sourceNode?.data?.width || 0;
+  const activeHeight = timeline.activeClip?.height || graph.sourceNode?.data?.height || 0;
 
   // ── onDropFileOnSource: handler injected into source nodes ──
   const handleDropFileOnSource = useCallback(async (filepath) => {
@@ -430,7 +415,7 @@ function FlowEditor() {
           duration,
           width: w,
           height: h,
-          fps: meta.fps || 60,
+          fps: Number(meta.fps) || 0,
           aspect: w > h ? '16:9' : '9:16'
         };
         media.setMediaPool(prev => [...prev, newAsset]);
