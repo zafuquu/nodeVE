@@ -40,6 +40,48 @@ function getFFmpegPath() {
   return resolveFFmpeg();
 }
 
+const _audioProbeCache = new Map();
+
+function probeHasAudio(filepath) {
+  if (_audioProbeCache.has(filepath)) return _audioProbeCache.get(filepath);
+
+  try {
+    execSync(
+      `ffprobe -v error -select_streams a:0 -show_entries stream=index -of csv=p=0 ${JSON.stringify(filepath)}`,
+      { encoding: 'utf8', timeout: 5000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }
+    );
+    _audioProbeCache.set(filepath, true);
+    return true;
+  } catch {
+    // ffprobe may not be on PATH even when the bundled/system ffmpeg is available.
+    // Resolve the common bundled locations before giving up.
+    const ffmpegPath = resolveFFmpeg();
+    const candidates = [];
+    if (ffmpegPath && ffmpegPath !== 'ffmpeg') {
+      candidates.push(ffmpegPath.replace(/ffmpeg\.exe$/i, 'ffprobe.exe'));
+    }
+    candidates.push('ffprobe');
+
+    for (const probePath of candidates) {
+      try {
+        const output = execSync(
+          `"${probePath}" -v error -select_streams a:0 -show_entries stream=index -of csv=p=0 ${JSON.stringify(filepath)}`,
+          { encoding: 'utf8', timeout: 5000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }
+        );
+        const hasAudio = output.trim().length > 0;
+        _audioProbeCache.set(filepath, hasAudio);
+        return hasAudio;
+      } catch {
+        // Try the next candidate.
+      }
+    }
+  }
+
+  // Unknown is treated as audio-present so valid audio is never silently discarded.
+  _audioProbeCache.set(filepath, true);
+  return true;
+}
+
 let _gpuResult = null;
 let _gpuResolved = false;
 
@@ -605,9 +647,9 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
       args.push('-i', clip.filepath);
     });
 
-    // Build concat filter_complex
+    // Build concat filter_complex. Audio is normalized per clip so a video-only
+    // source gets a silent stream instead of making the entire concat fail.
     const concatInputs = sequenceClips.map((_, i) => `[${i}:v]`).join('');
-    const concatAudioInputs = sequenceClips.map((_, i) => `[${i}:a]`).join('');
     const concatFilterParts = [];
 
     // Scale all inputs to uniform resolution before concatenating
@@ -622,9 +664,28 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
       `${scaledInputs}concat=n=${sequenceClips.length}:v=1:a=0[concatv]`
     );
 
-    // Audio concat
+    // Normalize each audio stream to a common format. For clips without
+    // audio, synthesize silence for exactly the selected clip duration.
+    const normalizedAudioInputs = [];
+    sequenceClips.forEach((clip, i) => {
+      const trimInSec = (clip.trimIn ?? 0) / 1000;
+      const trimOutSec = (clip.trimOut ?? (clip.duration * 1000)) / 1000;
+      const durationSec = Math.max(0.001, trimOutSec - trimInSec);
+      const audioLabel = `seqaudio${i}`;
+
+      if (probeHasAudio(clip.filepath)) {
+        concatFilterParts.push(
+          `[${i}:a]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[${audioLabel}]`
+        );
+      } else {
+        concatFilterParts.push(
+          `anullsrc=r=48000:cl=stereo:d=${durationSec.toFixed(3)}[${audioLabel}]`
+        );
+      }
+      normalizedAudioInputs.push(`[${audioLabel}]`);
+    });
     concatFilterParts.push(
-      `${concatAudioInputs}concat=n=${sequenceClips.length}:v=0:a=1[concata]`
+      `${normalizedAudioInputs.join('')}concat=n=${sequenceClips.length}:v=0:a=1[concata]`
     );
 
     let videoOut = 'concatv';
