@@ -35,7 +35,12 @@ export default function ExportModal({ isOpen, onClose, onExport, gpuAvailable })
     setIsRendering(true);
     setProgress({ percent: 0, speed: 0 });
     try {
-      await onExport({ targetPlatform, codec, fps, bitrate });
+      const result = await onExport({ targetPlatform, codec, fps, bitrate });
+      if (!result?.success) {
+        setIsRendering(false);
+        setProgress({ percent: 0, speed: 0 });
+        return;
+      }
       setProgress({ percent: 100, speed: 0 });
       setTimeout(() => {
         setIsRendering(false);
