@@ -149,7 +149,7 @@ export function validateExportProject({
     if (!Number.isFinite(trimIn) || !Number.isFinite(trimOut)) {
       errors.push(`Timeline clip ${index + 1} has an invalid trim range.`);
     } else if (trimIn < 0 || trimOut <= trimIn || trimOut > duration * 1000) {
-      errors.push(`Timeline clip ${index + 1} has an empty or invalid trim range.`;
+      errors.push(`Timeline clip ${index + 1} has an empty or invalid trim range.`);
     }
   }
 
