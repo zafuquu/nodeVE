@@ -43,7 +43,7 @@ export function normalizeStartOffset(clip = {}) {
 }
 
 export function getClipEffectiveDurationSec(clip = {}) {
-  const duration = Math.max(0, asTimelineNumber(clip.duration, 10));
+  const duration = Math.max(0, asTimelineNumber(clip.duration, 0));
   const trimIn = Math.max(0, asTimelineNumber(clip.trimIn, 0));
   const trimOut = Math.max(trimIn, asTimelineNumber(clip.trimOut, duration * 1000));
   return Math.max(0, (trimOut - trimIn) / 1000);
