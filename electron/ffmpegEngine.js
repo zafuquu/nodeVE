@@ -1,5 +1,6 @@
 const { execSync, spawn } = require('child_process');
 const fs = require('fs');
+const path = require('path');
 
 const OUTPUT_W = 1080;
 const OUTPUT_H = 1920;
@@ -931,15 +932,30 @@ function validateRuntimeInputs(config) {
       if (!clip?.filepath) errors.push(`Timeline clip ${index + 1} has no media path.`);
       else inputPaths.push(clip.filepath);
     }
-  } else if (config.inputPath) {
-    inputPaths.push(config.inputPath);
   } else {
-    errors.push('No input media path was provided.');
+    const sequenceClips = resolveSequenceClips(config.nodes || [], config.edges || []);
+    if (sequenceClips.length > 0) {
+      inputPaths.push(...sequenceClips.map((clip) => clip.filepath).filter(Boolean));
+    } else if (config.inputPath) {
+      inputPaths.push(config.inputPath);
+    } else {
+      errors.push('No input media path was provided.');
+    }
   }
 
   for (const filepath of inputPaths) {
     if (!fs.existsSync(filepath)) {
       errors.push(`Media file not found: ${filepath}`);
+    }
+  }
+
+  if (config.outputPath) {
+    const outputResolved = path.resolve(config.outputPath);
+    for (const filepath of inputPaths) {
+      if (path.resolve(filepath) === outputResolved) {
+        errors.push('Export output cannot overwrite an input media file.');
+        break;
+      }
     }
   }
 
@@ -953,7 +969,7 @@ function validateRuntimeInputs(config) {
   if (!config.outputPath) {
     errors.push('No output path was provided.');
   } else {
-    const outputDir = require('path').dirname(config.outputPath);
+    const outputDir = path.dirname(config.outputPath);
     if (!fs.existsSync(outputDir)) {
       errors.push(`Output directory does not exist: ${outputDir}`);
     }
