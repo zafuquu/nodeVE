@@ -783,6 +783,13 @@ function validateRuntimeInputs(config) {
     }
   }
 
+  const audioNode = (config.nodes || []).find(
+    (node) => node.type === 'audio' && node.data?.filepath && !node.data?.disabled
+  );
+  if (audioNode && !fs.existsSync(audioNode.data.filepath)) {
+    errors.push(`Background music file not found: ${audioNode.data.filepath}`);
+  }
+
   if (!config.outputPath) {
     errors.push('No output path was provided.');
   } else {
