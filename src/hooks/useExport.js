@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { sanitizeTimelineClip } from '../utils/timelineClips';
+import { validateExportProject } from '../utils/projectValidation';
 
 function asNumber(value, fallback = 0) {
   const next = Number(value);
@@ -171,6 +172,24 @@ export function useExport() {
     const originalFilepath = sourceNode.data.filepath;
     const outputPath = await window.clipForge.saveFile();
     if (!outputPath) return;
+
+    const preflight = validateExportProject({
+      nodes,
+      edges,
+      sourceNode,
+      clips: sanitizedTimelineClips,
+      settings,
+      outputPath,
+    });
+
+    if (!preflight.valid) {
+      alert(`Export validation failed:\n\n${preflight.errors.map((error) => `• ${error}`).join('\\n')}`);
+      return { success: false, error: preflight.errors.join(' ') };
+    }
+
+    if (preflight.warnings.length > 0) {
+      console.warn('[Export] Preflight warnings:', preflight.warnings);
+    }
 
     exportInProgressRef.current = true;
 
