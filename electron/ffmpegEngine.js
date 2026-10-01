@@ -826,9 +826,19 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
 
         let bgmFilter;
         if (delayMs > 0) {
-          bgmFilter = `[1:a]adelay=${delayMs}|${delayMs},volume=${volumeStr}[bgm];[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[mixeda]`;
+          bgmFilter = `[1:a]adelay=${delayMs}|${delayMs},volume=${volumeStr}[bgm]`;
         } else {
-          bgmFilter = `[1:a]volume=${volumeStr}[bgm];[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[mixeda]`;
+          bgmFilter = `[1:a]volume=${volumeStr}[bgm]`;
+        }
+
+        if (probeHasAudio(inputPath)) {
+          bgmFilter += ';[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[mixeda]';
+        } else {
+          // Video-only sources have no [0:a] stream to mix. Use the music
+          // track directly and pad it so the finite video stream controls the
+          // final duration via -shortest.
+          bgmFilter += ';[bgm]apad[mixeda]';
+          args.push('-shortest');
         }
 
         args.push('-filter_complex', filtergraph + ';' + bgmFilter);
@@ -846,10 +856,18 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
 
         let bgmFilter;
         if (delayMs > 0) {
-          bgmFilter = `[1:a]adelay=${delayMs}|${delayMs},volume=${volumeStr}[bgm];[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[mixeda]`;
+          bgmFilter = `[1:a]adelay=${delayMs}|${delayMs},volume=${volumeStr}[bgm]`;
         } else {
-          bgmFilter = `[1:a]volume=${volumeStr}[bgm];[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[mixeda]`;
+          bgmFilter = `[1:a]volume=${volumeStr}[bgm]`;
         }
+
+        if (probeHasAudio(inputPath)) {
+          bgmFilter += ';[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[mixeda]';
+        } else {
+          bgmFilter += ';[bgm]apad[mixeda]';
+          args.push('-shortest');
+        }
+
         args.push('-filter_complex', bgmFilter);
         args.push('-map', '0:v');
         args.push('-map', '[mixeda]');
