@@ -88,6 +88,33 @@ export function validateExportProject({
     errors.push('The node graph contains a cycle. Remove the circular connection before exporting.');
   }
 
+  const outputNodes = nodes.filter((node) => node.type === 'output');
+  if (outputNodes.length === 0) {
+    errors.push('The node graph has no OUTPUT node. Connect the composition to an OUTPUT before exporting.');
+  } else {
+    const adjacency = new Map();
+    for (const node of nodes) adjacency.set(node.id, []);
+    for (const edge of edges || []) {
+      if (adjacency.has(edge.source)) adjacency.get(edge.source).push(edge.target);
+    }
+    const sourceIds = new Set(nodes.filter((node) => node.type === 'source').map((node) => node.id));
+    const reachesSource = (startId) => {
+      const visited = new Set();
+      const queue = [startId];
+      while (queue.length > 0) {
+        const id = queue.shift();
+        if (visited.has(id)) continue;
+        visited.add(id);
+        if (sourceIds.has(id)) return true;
+        for (const next of adjacency.get(id) || []) queue.push(next);
+      }
+      return false;
+    };
+    if (!outputNodes.some((node) => reachesSource(node.id))) {
+      errors.push('No OUTPUT node is connected to a SOURCE node. Connect a renderable source path before exporting.');
+    }
+  }
+
   if (!sourceNode?.data?.filepath) {
     errors.push('No source media file is loaded.');
   }
