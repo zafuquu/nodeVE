@@ -139,7 +139,7 @@ function sanitizeGraphData({ nodes, edges, layerObjects, settings, trim, sourceN
     settings: {
       codec: String(settings.codec || ''),
       bitrate: String(settings.bitrate || '20M'),
-      fps: asNumber(settings.fps, 60),
+      fps: asNumber(settings.fps),
       targetPlatform: String(settings.targetPlatform || 'tiktok'),
     },
     trim: { in: asNumber(trim.in), out: asNumber(trim.out, 100) },
