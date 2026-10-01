@@ -96,11 +96,14 @@ export function validateExportProject({
   if (sourceData.duration != null && (!finite(sourceData.duration) || Number(sourceData.duration) < 0)) {
     errors.push('Source duration is invalid.');
   }
-  if (sourceData.width != null && (!finite(sourceData.width) || Number(sourceData.width) <= 0)) {
-    warnings.push('Source width is missing or invalid; the renderer may use its fallback dimensions.');
+  if (!finite(sourceData.width) || Number(sourceData.width) <= 0) {
+    errors.push('Source width is missing or invalid. Re-import the media so it can be probed.');
   }
-  if (sourceData.height != null && (!finite(sourceData.height) || Number(sourceData.height) <= 0)) {
-    warnings.push('Source height is missing or invalid; the renderer may use its fallback dimensions.');
+  if (!finite(sourceData.height) || Number(sourceData.height) <= 0) {
+    errors.push('Source height is missing or invalid. Re-import the media so it can be probed.');
+  }
+  if (!finite(sourceData.duration) || Number(sourceData.duration) <= 0) {
+    errors.push('Source duration is missing or invalid. Re-import the media so it can be probed.');
   }
 
   for (const [index, clip] of (clips || []).entries()) {
@@ -113,13 +116,13 @@ export function validateExportProject({
     const trimIn = Number(clip.trimIn);
     const trimOut = Number(clip.trimOut);
 
-    if (!Number.isFinite(duration) || duration < 0) {
-      errors.push(`Timeline clip ${index + 1} has an invalid duration.`);
+    if (!Number.isFinite(duration) || duration <= 0) {
+      errors.push(`Timeline clip ${index + 1} has no valid source duration.`);
     }
     if (!Number.isFinite(trimIn) || !Number.isFinite(trimOut)) {
       errors.push(`Timeline clip ${index + 1} has an invalid trim range.`);
-    } else if (duration > 0 && (trimIn < 0 || trimOut < trimIn || trimOut > duration * 1000)) {
-      errors.push(`Timeline clip ${index + 1} has a trim range outside its source duration.`);
+    } else if (trimIn < 0 || trimOut <= trimIn || trimOut > duration * 1000) {
+      errors.push(`Timeline clip ${index + 1} has an empty or invalid trim range.`;
     }
   }
 
