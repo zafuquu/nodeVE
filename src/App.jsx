@@ -475,6 +475,7 @@ function FlowEditor() {
       clips={timeline.outputClips}
       bgMusic={graph.bgMusicParams}
       onActiveClipChange={timeline.setActiveClipIndex}
+      sourceDuration={graph.sourceNode?.data?.duration || 0}
     >
     <div className="akuma-studio-layout">
       {/* ═══ TOP TOOLBAR — Palette + Presets + Project + Export ═══ */}
