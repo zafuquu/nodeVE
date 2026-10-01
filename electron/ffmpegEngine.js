@@ -607,7 +607,7 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
 
     // Build concat filter_complex
     const concatInputs = sequenceClips.map((_, i) => `[${i}:v]`).join('');
-    const concatAudioInputs = sequenceClips.map((_, i) => `[${i}:a?]`).join('');
+    const concatAudioInputs = sequenceClips.map((_, i) => `[${i}:a]`).join('');
     const concatFilterParts = [];
 
     // Scale all inputs to uniform resolution before concatenating
