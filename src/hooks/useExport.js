@@ -205,6 +205,7 @@ export function useExport() {
       } else {
         alert(`Export failed: ${result.error}`);
       }
+      return result;
     } catch (err) {
       console.error('[Export] Error during export:', err);
       alert(`Export failed: ${err.message || err}`);
