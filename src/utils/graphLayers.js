@@ -162,18 +162,16 @@ function resolveSourceClips(startNode, nodes, edges) {
       duration: Number(startNode.data?.duration || 0),
       width: Number(startNode.data?.width || 0),
       height: Number(startNode.data?.height || 0),
-      fps: Number(startNode.data?.fps || 60),
+      fps: Number(startNode.data?.fps || 0),
     }];
   }
 
   if (startNode.type === 'concat') {
     const incoming = (edges || [])
       .filter((e) => e.target === startNode.id)
-      .sort((a, b) => {
-        const ah = String(a.targetHandle || '');
-        const bh = String(b.targetHandle || '');
-        return ah.localeCompare(bh);
-      });
+      .map((edge, index) => ({ edge, index }))
+      .sort((a, b) => handleIndex(a.edge, a.index) - handleIndex(b.edge, b.index))
+      .map(({ edge }) => edge);
 
     const clips = [];
     for (const edge of incoming) {
@@ -328,7 +326,7 @@ export function findOutputMerge(nodes, edges, outputNodeId = null) {
     if (merge) return merge;
   }
 
-  return nodes.find((node) => node.type === 'merge') || null;
+  return null;
 }
 
 export function resolveMergeLayers(nodes, edges, mergeNodeId, options = {}) {
