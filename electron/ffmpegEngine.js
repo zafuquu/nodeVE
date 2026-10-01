@@ -556,7 +556,7 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
   if (sequenceClips.length === 0) {
     sequenceClips = resolveSequenceClips(nodes, edges);
   }
-  const hasSequence = sequenceClips.length > 1;
+  const hasSequence = sequenceClips.length > 0;
 
   // ── Resolve background music ────────────────────────────
   const bgMusic = resolveBackgroundMusic(nodes);
@@ -567,8 +567,8 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
     sequenceClips.forEach((clip) => {
       const trimInSec = (clip.trimIn ?? 0) / 1000;
       const trimOutSec = (clip.trimOut ?? (clip.duration * 1000)) / 1000;
-      const durationSec = trimOutSec - trimInSec;
-      
+      const durationSec = Math.max(0, trimOutSec - trimInSec);
+
       args.push('-ss', trimInSec.toFixed(3));
       args.push('-t', durationSec.toFixed(3));
       args.push('-i', clip.filepath);
