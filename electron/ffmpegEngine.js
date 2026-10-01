@@ -936,29 +936,36 @@ function validateRuntimeInputs(config) {
     }
   }
 
-  if (config.outputPath) {
-    const outputResolved = path.resolve(config.outputPath);
-    for (const filepath of inputPaths) {
-      if (path.resolve(filepath) === outputResolved) {
-        errors.push('Export output cannot overwrite an input media file.');
-        break;
-      }
-    }
-  }
-
   const audioNode = (config.nodes || []).find(
     (node) => node.type === 'audio' && node.data?.filepath && !node.data?.disabled
   );
-  if (audioNode && !fs.existsSync(audioNode.data.filepath)) {
-    errors.push(`Background music file not found: ${audioNode.data.filepath}`);
+  if (audioNode?.data?.filepath) {
+    const bgMusicPath = audioNode.data.filepath;
+    if (!fs.existsSync(bgMusicPath)) {
+      errors.push(`Background music file not found: ${bgMusicPath}`);
+    } else {
+      inputPaths.push(bgMusicPath);
+    }
   }
 
   if (!config.outputPath) {
     errors.push('No output path was provided.');
   } else {
+    const outputResolved = path.resolve(config.outputPath);
+    if (fs.existsSync(config.outputPath) && fs.statSync(config.outputPath).isDirectory()) {
+      errors.push('Export output path points to a directory, not a file.');
+    }
+
     const outputDir = path.dirname(config.outputPath);
     if (!fs.existsSync(outputDir)) {
       errors.push(`Output directory does not exist: ${outputDir}`);
+    }
+
+    for (const filepath of inputPaths) {
+      if (path.resolve(filepath) === outputResolved) {
+        errors.push('Export output cannot overwrite an input media file.');
+        break;
+      }
     }
   }
 
