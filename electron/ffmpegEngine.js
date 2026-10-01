@@ -97,8 +97,8 @@ function probeEncoderAvailability(codec) {
       { encoding: 'utf8', timeout: 5000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }
     );
     const available = output
-      .split(/\\r?\\n/)
-      .some((line) => line.trim().split(/\\s+/).includes(codec));
+      .split('\n')
+      .some((line) => line.trim().split(' ').filter(Boolean).includes(codec));
     _encoderProbeCache.set(codec, available);
     return available;
   } catch {
