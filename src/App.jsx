@@ -243,10 +243,12 @@ function FlowEditor() {
           });
         }
       } else if (flow.savedVideoPath) {
+        // Keep the saved path, but do not fabricate media metadata when probing
+        // is unavailable. The renderer will validate the real source before export.
         const filename = flow.savedVideoPath.split(/[\\/]/).pop();
         loadedNodes = loadedNodes.map((n) => {
           if (n.type === 'source') {
-            return { ...n, data: { ...n.data, filepath: flow.savedVideoPath, filename, duration: 120, width: 1920, height: 1080, fps: 60, aspect: '16:9' } };
+            return { ...n, data: { ...n.data, filepath: flow.savedVideoPath, filename } };
           }
           return n;
         });
