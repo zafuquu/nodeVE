@@ -99,38 +99,7 @@ function probeEncoderAvailability(codec) {
     );
     const available = output
       .split('\n')
-      .some((line) => line.trim().split(' ').filter(Boolean).includes(codec));
-    _encoderProbeCache.set(codec, available);
-    return available;
-  } catch {
-    _encoderProbeCache.set(codec, false);
-    return false;
-  }
-}
-
-function resolveVideoCodec(settings, gpuAvailable) {
-  const requestedCodec = settings?.codec;
-  const preferredCodec = requestedCodec || (gpuAvailable ? 'h264_nvenc' : 'libx264');
-
-  if (probeEncoderAvailability(preferredCodec)) return preferredCodec;
-
-  if (requestedCodec) {
-    throw new Error(
-      `Requested video encoder "${preferredCodec}" is unavailable in the selected FFmpeg build. Choose another encoder or install an FFmpeg build that includes it.`
-    );
-  }
-
-  if (preferredCodec === 'h264_nvenc' && probeEncoderAvailability('libx264')) {
-    console.warn('h264_nvenc is unavailable; falling back to libx264.');
-    return 'libx264';
-  }
-
-  throw new Error(
-    `Video encoder "${preferredCodec}" is unavailable, and the libx264 fallback is not available in the selected FFmpeg build.`
-  );
-}
-
-function detectNvidiaGpu()')}\\b`).test(output);
+      .some((line) => line.trim().split(/\s+/).includes(codec));
     _encoderProbeCache.set(codec, available);
     return available;
   } catch {
