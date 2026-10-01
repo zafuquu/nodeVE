@@ -85,7 +85,8 @@ function traceChainBackward(startNodeId, nodes, reverse) {
     const node = map.get(current);
     if (node) chain.unshift(node);
     const parents = reverse.get(current) || [];
-    current = parents[0]?.source || null;
+    const preferred = parents.find((edge) => map.get(edge.source)?.type === 'source') || parents[0];
+    current = preferred?.source || null;
   }
 
   return chain;
@@ -283,7 +284,9 @@ function resolveOutputLayers(nodes, edges, options = {}) {
     if (inputEdges.length === 0) continue;
     const virtualMerge = { id: `direct-output-${outputNode.id}`, type: 'merge' };
     const layers = inputEdges
-      .map((edge, index) => {
+      .map((edge, index) => ({ edge, index }))
+      .sort((a, b) => handleIndex(a.edge, a.index) - handleIndex(b.edge, b.index))
+      .map(({ edge }, index) => {
         const chain = traceChainBackward(edge.source, nodes, reverse);
         return buildLayerFromChain(chain, virtualMerge, edge, index, options);
       })
