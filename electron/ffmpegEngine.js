@@ -675,7 +675,7 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
 
       if (probeHasAudio(clip.filepath)) {
         concatFilterParts.push(
-          `[${i}:a]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[${audioLabel}]`
+          `[${i}:a]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,apad,atrim=duration=${durationSec.toFixed(3)}[${audioLabel}]`
         );
       } else {
         concatFilterParts.push(
