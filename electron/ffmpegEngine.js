@@ -762,8 +762,47 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
 // Active FFmpeg process reference — for kill on cancel/quit
 let activeFFmpegProcess = null;
 
+function validateRuntimeInputs(config) {
+  const errors = [];
+  const inputPaths = [];
+
+  if (Array.isArray(config.clips) && config.clips.length > 0) {
+    for (const [index, clip] of config.clips.entries()) {
+      if (!clip?.filepath) errors.push(`Timeline clip ${index + 1} has no media path.`);
+      else inputPaths.push(clip.filepath);
+    }
+  } else if (config.inputPath) {
+    inputPaths.push(config.inputPath);
+  } else {
+    errors.push('No input media path was provided.');
+  }
+
+  for (const filepath of inputPaths) {
+    if (!fs.existsSync(filepath)) {
+      errors.push(`Media file not found: ${filepath}`);
+    }
+  }
+
+  if (!config.outputPath) {
+    errors.push('No output path was provided.');
+  } else {
+    const outputDir = require('path').dirname(config.outputPath);
+    if (!fs.existsSync(outputDir)) {
+      errors.push(`Output directory does not exist: ${outputDir}`);
+    }
+  }
+
+  return errors;
+}
+
 function runExport(config, onProgress) {
   return new Promise((resolve, reject) => {
+    const runtimeErrors = validateRuntimeInputs(config);
+    if (runtimeErrors.length > 0) {
+      reject(new Error(runtimeErrors.join('\\n')));
+      return;
+    }
+
     const args = buildFFmpegCommand(config);
 
     console.log('--- AkumaUI FFmpeg Command ---');
