@@ -209,8 +209,8 @@ function FlowEditor() {
       } else if (flow.savedVideoPath && window.clipForge?.probeVideo) {
         try {
           const meta = await window.clipForge.probeVideo(flow.savedVideoPath);
-          const w = meta.width || 1920;
-          const h = meta.height || 1080;
+          const w = Number(meta.width) || 0;
+          const h = Number(meta.height) || 0;
           const filename = flow.savedVideoPath.split(/[\\/]/).pop();
 
           loadedNodes = loadedNodes.map((n) => {
@@ -224,7 +224,7 @@ function FlowEditor() {
                   duration: meta.duration || 0,
                   width: w,
                   height: h,
-                  fps: meta.fps || 60,
+                  fps: Number(meta.fps) || 0,
                   aspect: w > h ? '16:9' : '9:16',
                   codec: meta.codec || 'unknown',
                 }
@@ -418,10 +418,10 @@ function FlowEditor() {
     if (window.clipForge?.probeVideo) {
       try {
         const meta = await window.clipForge.probeVideo(filepath);
-        const w = meta.width || 1920;
-        const h = meta.height || 1080;
+        const w = Number(meta.width) || 0;
+        const h = Number(meta.height) || 0;
         const filename = filepath.split(/[\\/]/).pop();
-        const duration = meta.duration || 10;
+        const duration = Number(meta.duration) || 0;
 
         const newAsset = {
           id: Math.random().toString(36).substring(7),
