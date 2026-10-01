@@ -370,35 +370,64 @@ function buildBaseFilter(nodes, edges) {
   return blur ? `${base},boxblur=${radius}:${Math.min(radius, 5)}[base]` : `${base}[base]`;
 }
 
-function buildLayerFilter(layer, index, labels, fps = OUTPUT_FPS) {
-  const sourceBounds = ffBounds(layer.sourceBounds);
+function buildLayerFilter(layer, index, labels, fps = OUTPUT_FPS, options = {}) {
+  const inputLabel = options.inputLabel || '0:v';
+  const inputIsOutputCanvas = Boolean(options.inputIsOutputCanvas);
+
+  let sourceBounds = ffBounds(layer.sourceBounds);
   const sourceW = layer.source?.width || 1920;
-  const outputScale = OUTPUT_W / sourceW;
-  const scaleX = (layer.transformScale?.x ?? layer.transform?.scaleX ?? 100) / 100;
-  const scaleY = (layer.transformScale?.y ?? layer.transform?.scaleY ?? 100) / 100;
+  const sourceH = layer.source?.height || 1080;
+  const outputScaleX = OUTPUT_W / sourceW;
+  const outputScaleY = OUTPUT_H / sourceH;
+
+  // CONCAT inputs have already been normalized to the output canvas. Convert the
+  // layer's source-space bounds/mask geometry into that canvas before applying
+  // the exact same crop -> mask -> blur -> rotation pipeline used by normal export.
+  const effectiveLayer = inputIsOutputCanvas
+    ? {
+        ...layer,
+        sourceBounds: {
+          x: layer.sourceBounds.x * outputScaleX,
+          y: layer.sourceBounds.y * outputScaleY,
+          w: layer.sourceBounds.w * outputScaleX,
+          h: layer.sourceBounds.h * outputScaleY,
+        },
+        localMaskRects: (layer.localMaskRects || []).map((shape) => ({
+          ...shape,
+          x: shape.x * outputScaleX,
+          y: shape.y * outputScaleY,
+          w: shape.w * outputScaleX,
+          h: shape.h * outputScaleY,
+        })),
+      }
+    : layer;
+
+  sourceBounds = ffBounds(effectiveLayer.sourceBounds);
+  const scaleX = (effectiveLayer.transformScale?.x ?? effectiveLayer.transform?.scaleX ?? 100) / 100;
+  const scaleY = (effectiveLayer.transformScale?.y ?? effectiveLayer.transform?.scaleY ?? 100) / 100;
+  const outputScale = inputIsOutputCanvas ? 1 : outputScaleX;
   const outW = roundEven(sourceBounds.w * outputScale * scaleX);
-  const outH = roundEven(sourceBounds.h * outputScale * scaleY);
+  const outH = roundEven(sourceBounds.h * (inputIsOutputCanvas ? 1 : outputScaleY) * scaleY);
   const cropLabel = `layer${index}crop`;
   const alphaLabel = `layer${index}alpha`;
   const rgbaLabel = `layer${index}rgba`;
   const scaledLabel = `layer${index}scaled`;
-  const readyLabel = `layer${index}ready`;
   const filters = [];
 
   filters.push(
-    `[0:v]crop=${sourceBounds.w}:${sourceBounds.h}:${sourceBounds.x}:${sourceBounds.y},format=rgba[${cropLabel}]`
+    `[${inputLabel}]crop=${sourceBounds.w}:${sourceBounds.h}:${sourceBounds.x}:${sourceBounds.y},format=rgba[${cropLabel}]`
   );
-  if (layer.feather && layer.feather > 0) {
+  if (effectiveLayer.feather && effectiveLayer.feather > 0) {
     const rawAlphaLabel = `layer${index}alpharaw`;
     filters.push(
-      `color=c=black:s=${sourceBounds.w}x${sourceBounds.h}:r=${fps}:d=999,format=gray,geq=lum='${alphaExpression(layer)}'[${rawAlphaLabel}]`
+      `color=c=black:s=${sourceBounds.w}x${sourceBounds.h}:r=${fps}:d=999,format=gray,geq=lum='${alphaExpression(effectiveLayer)}'[${rawAlphaLabel}]`
     );
     filters.push(
-      `[${rawAlphaLabel}]boxblur=${layer.feather}:${Math.min(layer.feather, 5)}[${alphaLabel}]`
+      `[${rawAlphaLabel}]boxblur=${effectiveLayer.feather}:${Math.min(effectiveLayer.feather, 5)}[${alphaLabel}]`
     );
   } else {
     filters.push(
-      `color=c=black:s=${sourceBounds.w}x${sourceBounds.h}:r=${fps}:d=999,format=gray,geq=lum='${alphaExpression(layer)}'[${alphaLabel}]`
+      `color=c=black:s=${sourceBounds.w}x${sourceBounds.h}:r=${fps}:d=999,format=gray,geq=lum='${alphaExpression(effectiveLayer)}'[${alphaLabel}]`
     );
   }
   filters.push(`[${cropLabel}][${alphaLabel}]alphamerge,format=rgba[${rgbaLabel}]`);
@@ -406,16 +435,15 @@ function buildLayerFilter(layer, index, labels, fps = OUTPUT_FPS) {
   let currentLabel = scaledLabel;
   filters.push(`[${rgbaLabel}]scale=${outW}:${outH}:flags=lanczos,format=rgba[${scaledLabel}]`);
 
-  // Apply blur STRICTLY to this layer's isolated stream — never to the base
-  if (layer.blurRadius && layer.blurRadius > 0) {
+  if (effectiveLayer.blurRadius && effectiveLayer.blurRadius > 0) {
     const blurredLabel = `layer${index}blurred`;
     filters.push(
-      `[${currentLabel}]boxblur=${layer.blurRadius}:${Math.min(layer.blurRadius, 5)},format=rgba[${blurredLabel}]`
+      `[${currentLabel}]boxblur=${effectiveLayer.blurRadius}:${Math.min(effectiveLayer.blurRadius, 5)},format=rgba[${blurredLabel}]`
     );
     currentLabel = blurredLabel;
   }
 
-  const rotation = layer.transform?.rotation || 0;
+  const rotation = effectiveLayer.transform?.rotation || 0;
   if (rotation !== 0) {
     const rad = (rotation * Math.PI) / 180;
     const rotLabel = `layer${index}rot`;
@@ -427,8 +455,8 @@ function buildLayerFilter(layer, index, labels, fps = OUTPUT_FPS) {
 
   labels.push({
     label: currentLabel,
-    posX: layer.transformPos?.x ?? layer.transform?.posX ?? 50,
-    posY: layer.transformPos?.y ?? layer.transform?.posY ?? 50,
+    posX: effectiveLayer.transformPos?.x ?? effectiveLayer.transform?.posX ?? 50,
+    posY: effectiveLayer.transformPos?.y ?? effectiveLayer.transform?.posY ?? 50,
   });
 
   return filters;
@@ -579,7 +607,7 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
 
     // Build concat filter_complex
     const concatInputs = sequenceClips.map((_, i) => `[${i}:v]`).join('');
-    const concatAudioInputs = sequenceClips.map((_, i) => `[${i}:a]`).join('');
+    const concatAudioInputs = sequenceClips.map((_, i) => `[${i}:a?]`).join('');
     const concatFilterParts = [];
 
     // Scale all inputs to uniform resolution before concatenating
@@ -602,43 +630,36 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
     let videoOut = 'concatv';
     let audioOut = 'concata';
 
-    // Apply layer effects on top of concatenated video if layerObjects exist
+    // Apply the same layer pipeline used by normal export. CONCAT's video is
+    // already normalized to OUTPUT_W x OUTPUT_H, so buildLayerFilter converts
+    // source-space crop/mask coordinates into that canvas first.
     if (layerObjects && layerObjects.length > 0) {
-      // Use the concatenated stream as the base
       const overlayLabels = [];
       const layerFilters = [];
 
       layerObjects.forEach((layer, index) => {
-        const sourceBounds = ffBounds(layer.sourceBounds);
-        const sourceW = layer.source?.width || 1920;
-        const outputScale = OUTPUT_W / sourceW;
-        const scaleX = (layer.transformScale?.x ?? 100) / 100;
-        const scaleY = (layer.transformScale?.y ?? 100) / 100;
-        const outW = roundEven(sourceBounds.w * outputScale * scaleX);
-        const outH = roundEven(sourceBounds.h * outputScale * scaleY);
-        const lbl = `seqlayer${index}`;
-
         layerFilters.push(
-          `[concatv]crop=${sourceBounds.w}:${sourceBounds.h}:${sourceBounds.x}:${sourceBounds.y},scale=${outW}:${outH}:flags=lanczos,format=rgba[${lbl}]`
+          ...buildLayerFilter(layer, index, overlayLabels, outputFps, {
+            inputLabel: 'concatv',
+            inputIsOutputCanvas: true,
+          })
         );
-
-        let currentLabel = lbl;
-        if (layer.blurRadius && layer.blurRadius > 0) {
-          const blurredLabel = `${lbl}blur`;
-          layerFilters.push(
-            `[${currentLabel}]boxblur=${layer.blurRadius}:${Math.min(layer.blurRadius, 5)},format=rgba[${blurredLabel}]`
-          );
-          currentLabel = blurredLabel;
-        }
-
-        overlayLabels.push({
-          label: currentLabel,
-          posX: layer.transformPos?.x ?? 50,
-          posY: layer.transformPos?.y ?? 50,
-        });
       });
 
-      concatFilterParts.push(...layerFilters);
+      layerFilters.forEach((filter) => concatFilterParts.push(filter));
+
+      let compositeLabel = videoOut;
+      overlayLabels.forEach((layer, index) => {
+        const outLabel = index === overlayLabels.length - 1 ? 'layeredvideo' : `seqcomp${index}`;
+        const overlayX = `(${OUTPUT_W}-overlay_w)*${((layer.posX || 0) / 100).toFixed(4)}`;
+        const overlayY = `(${OUTPUT_H}-overlay_h)*${((layer.posY || 0) / 100).toFixed(4)}`;
+        concatFilterParts.push(
+          `[${compositeLabel}][${layer.label}]overlay=x='${overlayX}':y='${overlayY}':shortest=1:format=auto[${outLabel}]`
+        );
+        compositeLabel = outLabel;
+      });
+
+      videoOut = compositeLabel;
     }
 
     // Mix background music if present
