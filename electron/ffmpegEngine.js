@@ -964,6 +964,7 @@ function validateRuntimeInputs(config) {
 
 function runExport(config, onProgress) {
   return new Promise((resolve, reject) => {
+    const reportProgress = typeof onProgress === 'function' ? onProgress : () => {};
     const runtimeErrors = validateRuntimeInputs(config);
     if (runtimeErrors.length > 0) {
       reject(new Error(runtimeErrors.join('\\n')));
@@ -998,14 +999,28 @@ function runExport(config, onProgress) {
         const percent = duration > 0 ? Math.min(100, Math.round((currentTime / duration) * 100)) : 0;
         const speedMatch = text.match(/speed=\s*([0-9.]+)x/);
         const speed = speedMatch ? parseFloat(speedMatch[1]) : 0;
-        onProgress({ currentTime, duration, percent, speed, raw: text });
+        reportProgress({ currentTime, duration, percent, speed, raw: text });
       }
     });
 
     ffmpeg.on('close', (code) => {
       activeFFmpegProcess = null;
-      if (code === 0) resolve({ success: true });
-      else reject(new Error(`FFmpeg exited with code ${code}:\n${stderr.slice(-1200)}`));
+
+      if (code === 0) {
+        try {
+          const stat = fs.statSync(config.outputPath);
+          if (!stat.isFile() || stat.size <= 0) {
+            reject(new Error('FFmpeg reported success, but the output file was not created correctly.'));
+            return;
+          }
+          resolve({ success: true, outputPath: config.outputPath, size: stat.size });
+        } catch (error) {
+          reject(new Error(`FFmpeg reported success, but the output file could not be verified: ${error.message}`));
+        }
+        return;
+      }
+
+      reject(new Error(`FFmpeg exited with code ${code}:\n${stderr.slice(-1200)}`));
     });
 
     ffmpeg.on('error', (err) => {
