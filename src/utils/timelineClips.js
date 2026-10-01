@@ -51,11 +51,18 @@ export function getClipEffectiveDurationSec(clip = {}) {
 
 export function sanitizeTimelineClip(clip = {}, index = 0) {
   const duration = Math.max(0, asTimelineNumber(clip.duration, 10));
-  const trimIn = Math.max(0, asTimelineNumber(clip.trimIn, 0));
-  let trimOut = asTimelineNumber(clip.trimOut, duration * 1000);
+  const sourceDurationMs = Math.max(0, duration * 1000);
+  const trimIn = Math.min(sourceDurationMs, Math.max(0, asTimelineNumber(clip.trimIn, 0)));
+  let trimOut = asTimelineNumber(clip.trimOut, sourceDurationMs);
 
-  if (trimOut <= trimIn) {
-    trimOut = Math.max(trimIn + 200, duration * 1000);
+  if (sourceDurationMs > 0) {
+    trimOut = Math.min(sourceDurationMs, Math.max(trimIn, trimOut));
+  } else {
+    trimOut = Math.max(trimIn, trimOut);
+  }
+
+  if (trimOut <= trimIn && sourceDurationMs > trimIn) {
+    trimOut = sourceDurationMs;
   }
 
   return {
