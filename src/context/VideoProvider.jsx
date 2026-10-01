@@ -33,7 +33,7 @@ export function useVideo() {
   return useMemo(() => ({ ...stateCtx, ...timeCtx }), [stateCtx, timeCtx]);
 }
 
-export function VideoProvider({ children, filepath, width, height, clips = [], bgMusic = null, onActiveClipChange }) {
+export function VideoProvider({ children, filepath, width, height, clips = [], bgMusic = null, onActiveClipChange, sourceDuration = 0 }) {
   // ── Master Media Element Refs ──────────────────────────────
   const masterVideoRef = useRef(null);
   const masterAudioRef = useRef(null);
@@ -74,19 +74,20 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
       });
     }
     if (filepath) {
+      const duration = Math.max(0, asTimelineNumber(sourceDuration, 0));
       return [{
         filepath,
-        duration: 120,
+        duration,
         width: width || 1920,
         height: height || 1080,
         trimIn: 0,
-        trimOut: 120000,
-        effectiveDuration: 120,
+        trimOut: duration * 1000,
+        effectiveDuration: duration,
         startOffset: 0,
       }];
     }
     return [];
-  }, [clips, filepath, width, height]);
+  }, [clips, filepath, width, height, sourceDuration]);
 
   // Compute duration and clip start/end boundaries based on effective durations
   const totalDuration = useMemo(() => {
