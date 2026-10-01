@@ -930,12 +930,6 @@ function validateRuntimeInputs(config) {
     }
   }
 
-  for (const filepath of inputPaths) {
-    if (!fs.existsSync(filepath)) {
-      errors.push(`Media file not found: ${filepath}`);
-    }
-  }
-
   const audioNode = (config.nodes || []).find(
     (node) => node.type === 'audio' && node.data?.filepath && !node.data?.disabled
   );
@@ -945,6 +939,12 @@ function validateRuntimeInputs(config) {
       errors.push(`Background music file not found: ${bgMusicPath}`);
     } else {
       inputPaths.push(bgMusicPath);
+    }
+  }
+
+  for (const filepath of inputPaths) {
+    if (!fs.existsSync(filepath)) {
+      errors.push(`Media file not found: ${filepath}`);
     }
   }
 
