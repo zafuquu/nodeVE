@@ -497,7 +497,15 @@ function resolveSequenceClips(nodes, edges) {
     if (node.type === 'concat') {
       const incoming = (edges || [])
         .filter((e) => e.target === node.id)
-        .sort((a, b) => String(a.targetHandle || '').localeCompare(String(b.targetHandle || '')));
+        .map((edge, index) => ({ edge, index }))
+        .sort((a, b) => {
+          const aMatch = String(a.edge.targetHandle || '').match(/(\\d+)$/);
+          const bMatch = String(b.edge.targetHandle || '').match(/(\\d+)$/);
+          const aIndex = aMatch ? Number(aMatch[1]) : a.index;
+          const bIndex = bMatch ? Number(bMatch[1]) : b.index;
+          return aIndex - bIndex || a.index - b.index;
+        })
+        .map(({ edge }) => edge);
       const clips = [];
       for (const edge of incoming) {
         const srcNode = map.get(edge.source);
