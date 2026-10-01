@@ -343,8 +343,16 @@ function FlowEditor() {
       graph.sourceNode,
       graph.resolvedLayers,
       timeline.sanitizedTimelineClips,
-      timeline.sanitizedTimelineClips.length > 0 ? 0 : 0, // trimIn from clips
-      timeline.sanitizedTimelineClips.length > 0 ? 100 : 100, // trimOut from clips
+      (() => {
+        const clip = timeline.sanitizedTimelineClips[0];
+        if (!clip || !clip.duration) return 0;
+        return Math.max(0, Math.min(100, (clip.trimIn / (clip.duration * 1000)) * 100));
+      })(), // trimIn from the active timeline clip
+      (() => {
+        const clip = timeline.sanitizedTimelineClips[0];
+        if (!clip || !clip.duration) return 100;
+        return Math.max(0, Math.min(100, (clip.trimOut / (clip.duration * 1000)) * 100));
+      })(), // trimOut from the active timeline clip
       graph.updateNodeData
     );
   }, [exportManager, graph, timeline]);
