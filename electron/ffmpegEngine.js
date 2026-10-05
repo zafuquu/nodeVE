@@ -670,7 +670,7 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
   const args = ['-y'];
 
   // ── Resolve sequence clips ──────────────────────────────
-  let sequenceClips = config.clips || [];
+  let sequenceClips = (config.clips || []).filter((clip) => clip?.trackType === 'video' && Number(clip.trackIndex) === 1);
   if (sequenceClips.length === 0) {
     sequenceClips = resolveSequenceClips(nodes, edges);
   }
@@ -917,8 +917,12 @@ function validateRuntimeInputs(config) {
   const errors = [];
   const inputPaths = [];
 
-  if (Array.isArray(config.clips) && config.clips.length > 0) {
-    for (const [index, clip] of config.clips.entries()) {
+  const videoTimelineClips = Array.isArray(config.clips)
+    ? config.clips.filter((clip) => clip?.trackType === 'video' && Number(clip.trackIndex) === 1)
+    : [];
+
+  if (videoTimelineClips.length > 0) {
+    for (const [index, clip] of videoTimelineClips.entries()) {
       if (!clip?.filepath) errors.push(`Timeline clip ${index + 1} has no media path.`);
       else inputPaths.push(clip.filepath);
     }
