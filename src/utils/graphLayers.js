@@ -199,7 +199,7 @@ function buildLayerFromChain(chain, mergeNode, inputEdge, order, options = {}) {
   const nodes = options.nodes || [];
   const edges = options.edges || [];
   const clips = resolveSourceClips(baseNode, nodes, edges);
-  const primaryClip = clips[0] || { width: 1920, height: 1080, duration: 0, filepath: '' };
+  const primaryClip = clips[0] || { width: 0, height: 0, duration: 0, filepath: '' };
 
   // TRANSFORM is optional — use identity defaults if absent
   // Skip nodes that have been disabled (bypassed)
@@ -218,8 +218,8 @@ function buildLayerFromChain(chain, mergeNode, inputEdge, order, options = {}) {
   const maskNode = [...searchNodes].reverse().find((node) => node.type === 'mask' && enabled(node));
   const blurNode = [...chain].reverse().find((node) => node.type === 'blur' && enabled(node));
 
-  const srcW = Number(options.srcW || primaryClip.width || 1920);
-  const srcH = Number(options.srcH || primaryClip.height || 1080);
+  const srcW = Number(options.srcW ?? primaryClip.width ?? 0);
+  const srcH = Number(options.srcH ?? primaryClip.height ?? 0);
   
   const fullBounds = getCropBounds(null, srcW, srcH);
   const cropBounds = cropNode ? getCropBounds(cropNode, srcW, srcH) : null;
