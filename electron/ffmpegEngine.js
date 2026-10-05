@@ -268,8 +268,8 @@ function buildLayerFromChain(chain, mergeNode, inputEdge, order, options = {}) {
   const maskNode = [...searchNodes].reverse().find((node) => node.type === 'mask' && enabled(node));
   const blurNode = [...chain].reverse().find((node) => node.type === 'blur' && enabled(node));
 
-  const srcW = Number(options.srcW || sourceNode.data?.width || 1920);
-  const srcH = Number(options.srcH || sourceNode.data?.height || 1080);
+  const srcW = Number(options.srcW ?? sourceNode.data?.width ?? 0);
+  const srcH = Number(options.srcH ?? sourceNode.data?.height ?? 0);
   
   const fullBounds = getCropBounds(null, srcW, srcH);
   const cropBounds = cropNode ? getCropBounds(cropNode, srcW, srcH) : null;
@@ -462,8 +462,8 @@ function buildLayerFilter(layer, index, labels, fps = OUTPUT_FPS, options = {}) 
   const inputIsOutputCanvas = Boolean(options.inputIsOutputCanvas);
 
   let sourceBounds = ffBounds(layer.sourceBounds);
-  const sourceW = layer.source?.width || 1920;
-  const sourceH = layer.source?.height || 1080;
+  const sourceW = Number(layer.source?.width || 0);
+  const sourceH = Number(layer.source?.height || 0);
   const outputScaleX = OUTPUT_W / sourceW;
   const outputScaleY = OUTPUT_H / sourceH;
 
@@ -555,8 +555,8 @@ function buildFiltergraph(nodes, edges, options = {}) {
   const sourceNode = nodes.find((node) => node.type === 'source');
   if (!sourceNode) return { filtergraph: '', inputCount: 0 };
 
-  const sourceW = sourceNode.data?.width || 1920;
-  const sourceH = sourceNode.data?.height || 1080;
+  const sourceW = Number(sourceNode.data?.width || 0);
+  const sourceH = Number(sourceNode.data?.height || 0);
   const fps = Number(options.fps || OUTPUT_FPS);
   const layerObjects = options.layerObjects || resolveOutputLayers(nodes, edges, {
     srcW: sourceW,
@@ -608,8 +608,8 @@ function resolveSequenceClips(nodes, edges) {
       return [{
         filepath: node.data.filepath,
         duration: Number(node.data.duration || 0),
-        width: Number(node.data.width || 1920),
-        height: Number(node.data.height || 1080),
+        width: Number(node.data.width || 0),
+        height: Number(node.data.height || 0),
       }];
     }
     if (node.type === 'concat') {
@@ -802,7 +802,10 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
   } else {
     // ── SINGLE INPUT MODE (original behavior) ─────────────
     if (trim && (trim.in > 0 || trim.out < 100)) {
-      const duration = config.duration || 120;
+      const duration = Number(config.duration);
+      if (!Number.isFinite(duration) || duration <= 0) {
+        throw new Error('Cannot apply export trim because the source duration is missing or invalid.');
+      }
       if (trim.in > 0) args.push('-ss', ((trim.in / 100) * duration).toFixed(2));
       if (trim.out < 100) args.push('-to', ((trim.out / 100) * duration).toFixed(2));
     }
