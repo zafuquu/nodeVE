@@ -153,6 +153,50 @@ export function validateExportProject({
     }
   }
 
+  // The current FFmpeg sequence renderer concatenates V1 clips. Do not allow
+  // timeline positions it cannot represent, because silently collapsing gaps
+  // or overlaps would produce a different edit than the user created.
+  const v1VideoClips = (clips || [])
+    .filter((clip) => String(clip?.trackType || '').toLowerCase() === 'video' && Number(clip?.trackIndex) === 1)
+    .slice()
+    .sort((a, b) => Number(a?.startOffset || 0) - Number(b?.startOffset || 0));
+
+  if (v1VideoClips.length > 0) {
+    const firstStart = Number(v1VideoClips[0]?.startOffset ?? 0);
+    if (!Number.isFinite(firstStart) || firstStart < 0) {
+      errors.push('The V1 timeline contains an invalid start offset.');
+    } else if (firstStart > 0.001) {
+      errors.push('The V1 timeline starts after 0s, but the current exporter cannot render a leading gap.');
+    }
+
+    for (let i = 0; i < v1VideoClips.length - 1; i += 1) {
+      const current = v1VideoClips[i];
+      const next = v1VideoClips[i + 1];
+      const currentStart = Number(current?.startOffset ?? 0);
+      const currentTrimIn = Number(current?.trimIn ?? 0);
+      const currentTrimOut = Number(current?.trimOut ?? 0);
+      const currentEnd = currentStart + Math.max(0, currentTrimOut - currentTrimIn) / 1000;
+      const nextStart = Number(next?.startOffset ?? 0);
+
+      if (!Number.isFinite(currentEnd) || !Number.isFinite(nextStart)) {
+        errors.push('The V1 timeline contains an invalid clip position.');
+        continue;
+      }
+
+      if (Math.abs(nextStart - currentEnd) > 0.001) {
+        errors.push('The V1 timeline contains a gap or overlap that the current exporter cannot render. Move V1 clips so each clip starts exactly when the previous clip ends.');
+        break;
+      }
+    }
+  }
+
+  const standaloneAudioClips = (clips || []).filter(
+    (clip) => String(clip?.trackType || '').toLowerCase() === 'audio'
+  );
+  if (standaloneAudioClips.length > 0) {
+    errors.push('Standalone timeline audio clips are not yet supported by the FFmpeg exporter. Use the existing audio graph node for background music.');
+  }
+
   const fps = Number(settings.fps);
   if (!Number.isFinite(fps) || fps <= 0 || fps > 240) {
     errors.push('Export frame rate must be between 1 and 240 fps.');
