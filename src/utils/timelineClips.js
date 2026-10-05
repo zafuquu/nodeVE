@@ -50,7 +50,7 @@ export function getClipEffectiveDurationSec(clip = {}) {
 }
 
 export function sanitizeTimelineClip(clip = {}, index = 0) {
-  const duration = Math.max(0, asTimelineNumber(clip.duration, 10));
+  const duration = Math.max(0, asTimelineNumber(clip.duration, 0));
   const sourceDurationMs = Math.max(0, duration * 1000);
   const trimIn = Math.min(sourceDurationMs, Math.max(0, asTimelineNumber(clip.trimIn, 0)));
   let trimOut = asTimelineNumber(clip.trimOut, sourceDurationMs);
