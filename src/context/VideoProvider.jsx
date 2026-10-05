@@ -108,21 +108,24 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
 
   // Active clip math
   const activeInfo = useMemo(() => {
-    if (clipsWithRange.length === 0) return { index: 0, clip: null, localTime: 0 };
-    let index = clipsWithRange.findIndex(c => currentTime >= c.start && currentTime < c.end);
-    if (index === -1) {
-      const nextIndex = clipsWithRange.findIndex(c => currentTime < c.start);
-      index = nextIndex === -1 ? clipsWithRange.length - 1 : nextIndex;
+    if (clipsWithRange.length === 0) return { index: 0, clip: null, localTime: 0, inGap: false };
+
+    const activeIndex = clipsWithRange.findIndex(c => currentTime >= c.start && currentTime < c.end);
+    if (activeIndex !== -1) {
+      const clip = clipsWithRange[activeIndex];
+      const localOffset = Math.max(0, Math.min(clip.effectiveDuration, currentTime - clip.start));
+      const nativeStart = clip.trimIn / 1000;
+      return { index: activeIndex, clip, localTime: nativeStart + localOffset, inGap: false };
     }
-    const clip = clipsWithRange[index];
-    if (!clip) return { index: 0, clip: null, localTime: 0 };
-    
-    // Convert global time offset within the clip block to local video frame time
-    const localOffset = Math.max(0, Math.min(clip.effectiveDuration, currentTime - clip.start));
-    const nativeStart = clip.trimIn / 1000;
-    const localTime = nativeStart + localOffset;
-    return { index, clip, localTime };
-  }, [clipsWithRange, currentTime, totalDuration]);
+
+    const nextIndex = clipsWithRange.findIndex(c => currentTime < c.start);
+    if (nextIndex !== -1) {
+      return { index: nextIndex, clip: null, localTime: 0, inGap: true };
+    }
+
+    const lastIndex = clipsWithRange.length - 1;
+    return { index: lastIndex, clip: null, localTime: 0, inGap: false };
+  }, [clipsWithRange, currentTime]);
 
   // Store refs to avoid stale closures in RAF loop
   const activeInfoRef = useRef(activeInfo);
@@ -158,12 +161,8 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
 
   // Set initial readiness
   useEffect(() => {
-    if (resolvedClips.length > 0) {
-      setVideoReady(true);
-    } else {
-      setVideoReady(false);
-    }
-  }, [resolvedClips]);
+    setVideoReady(resolvedClips.length > 0 && !activeInfo.inGap);
+  }, [resolvedClips, activeInfo.inGap]);
 
   // ── Sync Play/Pause status to DOM ──────────────────────────
   useEffect(() => {
@@ -190,6 +189,15 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
   useEffect(() => {
     const video = masterVideoRef.current;
     if (!video) return;
+
+    if (!activeFilepath) {
+      video.pause();
+      if (video.getAttribute('src')) {
+        video.removeAttribute('src');
+        video.load();
+      }
+      return;
+    }
 
     if (activeFilepath) {
       const targetSrc = `media:///${activeFilepath.replace(/\\/g, '/')}`;
@@ -231,7 +239,9 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
 
       let globalT = currentTimeRef.current;
 
-      if (video && !isSeekingRef.current) {
+      if (activeInfoRef.current.inGap) {
+        if (video) video.pause();
+      } else if (video && !isSeekingRef.current) {
         const currentLocalTime = video.currentTime;
         const nativeStart = activeClip ? activeClip.trimIn / 1000 : 0;
         const localOffset = Math.max(0, currentLocalTime - nativeStart);
