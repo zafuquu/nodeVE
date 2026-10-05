@@ -463,7 +463,7 @@ export default function Timeline({
         fullIndex: fullIndex,
         startX: e.clientX,
         initialTrimIn: asTimelineNumber(clip.trimIn, 0),
-        initialTrimOut: asTimelineNumber(clip.trimOut, asTimelineNumber(clip.duration, 10) * 1000),
+        initialTrimOut: asTimelineNumber(clip.trimOut, asTimelineNumber(clip.duration, 0) * 1000),
       });
       return;
     }
@@ -516,7 +516,7 @@ export default function Timeline({
       // Symmetrical Slip-Trim calculation
       const deltaMs = (deltaX / trackWidth) * Math.max(0.001, totalDuration) * 1000;
 
-      const durationMs = Math.max(dragging.initialTrimOut, asTimelineNumber(clip.duration, 10) * 1000);
+      const durationMs = Math.max(dragging.initialTrimOut, asTimelineNumber(clip.duration, 0) * 1000);
       const currentWidthMs = (dragging.initialTrimOut - dragging.initialTrimIn);
 
       // Slide trim window
@@ -803,7 +803,7 @@ export default function Timeline({
       fullIndex,
       startX: e.clientX,
       initialTrimIn: asTimelineNumber(clip.trimIn, 0),
-      initialTrimOut: asTimelineNumber(clip.trimOut, asTimelineNumber(clip.duration, 10) * 1000),
+      initialTrimOut: asTimelineNumber(clip.trimOut, asTimelineNumber(clip.duration, 0) * 1000),
       initialStart: asTimelineNumber(meta?.start, asTimelineNumber(clip.startOffset, 0)),
       initialEnd: asTimelineNumber(meta?.end, asTimelineNumber(clip.startOffset, 0) + getClipEffectiveDurationSec(clip)),
       initialStartOffset: asTimelineNumber(clip.startOffset, 0),
@@ -1010,14 +1010,14 @@ export default function Timeline({
           const newTrimIn = dragging.initialTrimIn + (proposedGlobalTime - initialStart) * 1000;
           const maxTrimIn = dragging.initialTrimOut - 200; // minimum duration 200ms
           const finalTrimIn = Math.max(0, Math.min(newTrimIn, maxTrimIn));
-          onClipTrimChange?.(clip.id, finalTrimIn, asTimelineNumber(clip.trimOut, asTimelineNumber(clip.duration, 10) * 1000));
+          onClipTrimChange?.(clip.id, finalTrimIn, asTimelineNumber(clip.trimOut, asTimelineNumber(clip.duration, 0) * 1000));
           const trimDeltaSec = (finalTrimIn - dragging.initialTrimIn) / 1000;
           onClipStartOffsetChange?.(clip.id, Math.max(0, asTimelineNumber(dragging.initialStartOffset, 0) + trimDeltaSec));
         } else {
           const clipTrimIn = asTimelineNumber(clip.trimIn, 0);
           const newTrimOut = clipTrimIn + (proposedGlobalTime - initialStart) * 1000;
           const minTrimOut = clipTrimIn + 200;
-          const maxTrimOut = Math.max(minTrimOut, asTimelineNumber(clip.duration, 10) * 1000);
+          const maxTrimOut = Math.max(minTrimOut, asTimelineNumber(clip.duration, 0) * 1000);
           const finalTrimOut = Math.min(maxTrimOut, Math.max(newTrimOut, minTrimOut));
           onClipTrimChange?.(clip.id, clipTrimIn, finalTrimOut);
         }
