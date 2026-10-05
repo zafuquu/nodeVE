@@ -19,12 +19,12 @@ export function useTimelineData() {
       .map((clip, sourceIndex) => ({ ...clip, sourceIndex }))
       .filter(c => c.trackType === 'video' && Number(c.trackIndex) === 1)
       .sort((a, b) => (a.startOffset ?? 0) - (b.startOffset ?? 0));
-  }, [sanitizedTimelineClips]);
+  }, [outputClips]);
 
   // ── Source duration from clips ───────────────────────────
   const sourceDuration = useMemo(() => {
-    if (sanitizedTimelineClips.length > 0) {
-      return sanitizedTimelineClips.reduce((max, c) => {
+    if (outputClips.length > 0) {
+      return outputClips.reduce((max, c) => {
         const eff = getClipEffectiveDurationSec(c);
         return Math.max(max, (c.startOffset ?? 0) + eff);
       }, 0);
