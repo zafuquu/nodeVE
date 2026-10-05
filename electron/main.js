@@ -243,10 +243,10 @@ ipcMain.handle('ffmpeg:probe', async (_event, filepath) => {
       const data = JSON.parse(stdout);
       const videoStream = data.streams?.find(s => s.codec_type === 'video');
       const duration = parseFloat(data.format?.duration || videoStream?.duration || 0);
-      const width = videoStream?.width || 1920;
-      const height = videoStream?.height || 1080;
+      const width = Number(videoStream?.width) || 0;
+      const height = Number(videoStream?.height) || 0;
 
-      let fps = 60;
+      let fps = 0;
       if (videoStream?.r_frame_rate) {
         const [num, den] = videoStream.r_frame_rate.split('/');
         if (den && parseInt(den) > 0) fps = Math.round(parseInt(num) / parseInt(den));
@@ -266,7 +266,7 @@ ipcMain.handle('ffmpeg:probe', async (_event, filepath) => {
     try {
       const { stderr: output } = await runAsync(ff, ['-i', filepath]);
 
-      let duration = 0, width = 1920, height = 1080, fps = 60;
+      let duration = 0, width = 0, height = 0, fps = 0;
 
       const durMatch = output.match(/Duration:\s*(\d{2}):(\d{2}):(\d{2}\.?\d*)/);
       if (durMatch) {
@@ -293,7 +293,7 @@ ipcMain.handle('ffmpeg:probe', async (_event, filepath) => {
   }
 
   console.error('[probe] All methods failed');
-  const fallback = { duration: 0, width: 1920, height: 1080, fps: 60, codec: 'unknown' };
+  const fallback = { duration: 0, width: 0, height: 0, fps: 0, codec: 'unknown' };
   setCachedProbe(filepath, fallback);
   return fallback;
 });
