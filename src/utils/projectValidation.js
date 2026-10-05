@@ -165,8 +165,6 @@ export function validateExportProject({
     const firstStart = Number(v1VideoClips[0]?.startOffset ?? 0);
     if (!Number.isFinite(firstStart) || firstStart < 0) {
       errors.push('The V1 timeline contains an invalid start offset.');
-    } else if (firstStart > 0.001) {
-      errors.push('The V1 timeline contains an invalid negative/unknown start offset.');
     }
 
     for (let i = 0; i < v1VideoClips.length - 1; i += 1) {
