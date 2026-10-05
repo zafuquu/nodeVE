@@ -38,6 +38,7 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
   const masterVideoRef = useRef(null);
   const masterAudioRef = useRef(null);
   const bgMusicRef = useRef(null);
+  const timelineAudioRefs = useRef(new Map());
 
   const subscribersRef = useRef(new Set());
   const rafRef = useRef(null);
@@ -89,6 +90,19 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
     }
     return [];
   }, [clips, filepath, width, height, sourceDuration]);
+
+  // Standalone timeline audio clips (voiceover / A1-A3) share the same
+  // master timeline clock as V1 video playback and may overlap each other.
+  const timelineAudioClips = useMemo(() => {
+    return (clips || [])
+      .map((clip, index) => sanitizeTimelineClip(clip, index))
+      .filter(c => c.trackType === 'audio' && c.filepath && !/^blob:/i.test(String(c.filepath)))
+      .map(c => ({
+        ...c,
+        start: Math.max(0, asTimelineNumber(c.startOffset, 0)),
+        effectiveDuration: getClipEffectiveDurationSec(c),
+      }));
+  }, [clips]);
 
   // Compute duration and clip start/end boundaries based on effective durations
   const totalDuration = useMemo(() => {
@@ -228,6 +242,42 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
     }
   }, [activeFilepath, activeInfo.localTime, isPlaying]);
 
+  const syncTimelineAudio = useCallback((timelineTime, shouldPlay) => {
+    const activeIds = new Set();
+    timelineAudioClips.forEach((clip) => {
+      const audio = timelineAudioRefs.current.get(clip.id);
+      if (!audio) return;
+
+      const start = clip.start;
+      const end = start + Math.max(0, clip.effectiveDuration);
+      const inRange = timelineTime >= start && timelineTime < end;
+      const volume = Math.max(0, Math.min(1, asTimelineNumber(clip.volume, 100) / 100));
+      audio.volume = volume;
+
+      if (inRange) {
+        activeIds.add(clip.id);
+        const targetTime = Math.max(0, clip.trimIn / 1000 + (timelineTime - start));
+        if (!Number.isFinite(audio.currentTime) || Math.abs(audio.currentTime - targetTime) > 0.15) {
+          try { audio.currentTime = targetTime; } catch {}
+        }
+        if (shouldPlay && audio.paused) audio.play().catch(() => {});
+        if (!shouldPlay && !audio.paused) audio.pause();
+      } else {
+        if (!audio.paused) audio.pause();
+        if (timelineTime < start && audio.currentTime !== 0) {
+          try { audio.currentTime = 0; } catch {}
+        }
+      }
+    });
+
+    // Stop any stale audio element whose clip was removed while playing.
+    timelineAudioRefs.current.forEach((audio, id) => {
+      if (!timelineAudioClips.some(c => c.id === id) && !audio.paused) audio.pause();
+    });
+
+    return activeIds;
+  }, [timelineAudioClips]);
+
   // ── RAF Loop ──────────────────────────────────────────────
   const startRAFLoop = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -322,6 +372,8 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
         }
       }
 
+      syncTimelineAudio(globalT, isPlayingRef.current && !isSeekingRef.current);
+
       // Notify all canvas draw subscribers at 60fps
       if (video) {
         subscribersRef.current.forEach(cb => {
@@ -332,7 +384,7 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
-  }, [clipsWithRange, bgMusic]);
+  }, [clipsWithRange, bgMusic, syncTimelineAudio]);
 
   // Start RAF loop on mount
   useEffect(() => {
@@ -412,6 +464,10 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
     const music = bgMusicRef.current;
     if (music) music.pause();
   }, []);
+
+  useEffect(() => {
+    syncTimelineAudio(currentTime, isPlaying && !isSeekingRef.current);
+  }, [currentTime, isPlaying, syncTimelineAudio]);
 
   // ── End Seek ──────────────────────────────────────────────
   const endSeek = useCallback(() => {
@@ -493,6 +549,17 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
             crossOrigin="anonymous"
             preload="auto"
           />
+          {timelineAudioClips.map((clip) => (
+            <audio
+              key={clip.id}
+              ref={(el) => {
+                if (el) timelineAudioRefs.current.set(clip.id, el);
+                else timelineAudioRefs.current.delete(clip.id);
+              }}
+              src={`media:///${clip.filepath.replace(/\\/g, '/')}`}
+              preload="auto"
+            />
+          ))}
           {bgMusic && bgMusic.filepath && (
             <audio
               key={`bg-music-${bgMusic.filepath}`}
