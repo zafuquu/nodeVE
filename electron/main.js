@@ -212,7 +212,7 @@ ipcMain.handle('ffmpeg:probe', async (_event, filepath) => {
   // Validate file exists before attempting to probe
   if (!fs.existsSync(filepath)) {
     console.error('[probe] File not found:', filepath);
-    return { duration: 0, width: 1920, height: 1080, fps: 60, codec: 'unknown' };
+    return { duration: 0, width: 0, height: 0, fps: 0, codec: 'unknown' };
   }
 
   const FFPROBE_PATHS = [
