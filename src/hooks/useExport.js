@@ -228,6 +228,7 @@ export function useExport() {
     } catch (err) {
       console.error('[Export] Error during export:', err);
       alert(`Export failed: ${err.message || err}`);
+      return { success: false, error: err.message || String(err) };
     } finally {
       exportInProgressRef.current = false;
       if (sourceNode.data.filepath !== originalFilepath) {
