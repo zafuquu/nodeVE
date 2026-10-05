@@ -30,8 +30,7 @@ export function useTimelineData() {
       }, 0);
     }
     return 0;
-  }, [sanitizedTimelineClips]);
-
+  }, [outputClips]);
   // ── Active clip info ─────────────────────────────────────
   const activeClip = sanitizedTimelineClips[activeClipIndex] || null;
 
