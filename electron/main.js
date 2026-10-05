@@ -45,6 +45,11 @@ const MIME_TYPES = {
   '.avi': 'video/x-msvideo',
   '.mov': 'video/quicktime',
   '.webm': 'video/webm',
+  '.wav': 'audio/wav',
+  '.mp3': 'audio/mpeg',
+  '.ogg': 'audio/ogg',
+  '.opus': 'audio/ogg',
+  '.m4a': 'audio/mp4',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -153,6 +158,31 @@ ipcMain.handle('dialog:saveFile', async () => {
   });
   if (result.canceled) return null;
   return result.filePath;
+});
+
+ipcMain.handle('recording:save', async (_event, payload) => {
+  try {
+    const { data, extension = 'webm' } = payload || {};
+    if (!data) throw new Error('No recording data supplied.');
+
+    const allowedExtensions = new Set(['webm', 'ogg', 'opus', 'wav', 'mp3', 'm4a']);
+    const safeExtension = String(extension).toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!allowedExtensions.has(safeExtension)) {
+      throw new Error('Unsupported recording format.');
+    }
+
+    const recordingsDir = path.join(app.getPath('userData'), 'recordings');
+    fs.mkdirSync(recordingsDir, { recursive: true });
+
+    const filename = `voiceover-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${safeExtension}`;
+    const filepath = path.join(recordingsDir, filename);
+    const buffer = Buffer.from(data);
+    fs.writeFileSync(filepath, buffer);
+    return { success: true, filepath };
+  } catch (err) {
+    console.error('[recording:save] Failed:', err.message);
+    return { success: false, error: err.message || String(err) };
+  }
 });
 
 ipcMain.handle('ffmpeg:checkGpu', async () => {
