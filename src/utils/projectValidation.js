@@ -166,7 +166,7 @@ export function validateExportProject({
     if (!Number.isFinite(firstStart) || firstStart < 0) {
       errors.push('The V1 timeline contains an invalid start offset.');
     } else if (firstStart > 0.001) {
-      errors.push('The V1 timeline starts after 0s, but the current exporter cannot render a leading gap.');
+      errors.push('The V1 timeline contains an invalid negative/unknown start offset.');
     }
 
     for (let i = 0; i < v1VideoClips.length - 1; i += 1) {
@@ -183,8 +183,8 @@ export function validateExportProject({
         continue;
       }
 
-      if (Math.abs(nextStart - currentEnd) > 0.001) {
-        errors.push('The V1 timeline contains a gap or overlap that the current exporter cannot render. Move V1 clips so each clip starts exactly when the previous clip ends.');
+      if (nextStart < currentEnd - 0.001) {
+        errors.push('The V1 timeline contains overlapping clips. Overlaps on the primary V1 program track are not supported yet.');
         break;
       }
     }
