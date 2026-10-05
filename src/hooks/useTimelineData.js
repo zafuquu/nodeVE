@@ -29,7 +29,7 @@ export function useTimelineData() {
         return Math.max(max, (c.startOffset ?? 0) + eff);
       }, 0);
     }
-    return 120;
+    return 0;
   }, [sanitizedTimelineClips]);
 
   // ── Active clip info ─────────────────────────────────────
