@@ -675,6 +675,9 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
     sequenceClips = resolveSequenceClips(nodes, edges);
   }
   const hasSequence = sequenceClips.length > 0;
+  const timelineAudioClips = (config.clips || []).filter((clip) =>
+    clip?.trackType === 'audio' && clip?.filepath && !/^blob:/i.test(String(clip.filepath))
+  );
 
   // ── Resolve background music ────────────────────────────
   const bgMusic = resolveBackgroundMusic(nodes);
@@ -687,6 +690,18 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
       const trimOutSec = (clip.trimOut ?? (clip.duration * 1000)) / 1000;
       const durationSec = Math.max(0, trimOutSec - trimInSec);
 
+      args.push('-ss', trimInSec.toFixed(3));
+      args.push('-t', durationSec.toFixed(3));
+      args.push('-i', clip.filepath);
+    });
+
+    // Add standalone timeline audio inputs after the V1 video inputs.
+    // Their timeline startOffset is applied in the filtergraph so A1/A2/A3
+    // can be mixed against the rendered V1 program without changing the UI model.
+    timelineAudioClips.forEach((clip) => {
+      const trimInSec = Math.max(0, Number(clip.trimIn || 0) / 1000);
+      const trimOutSec = Math.max(trimInSec, Number(clip.trimOut ?? (Number(clip.duration || 0) * 1000)) / 1000);
+      const durationSec = Math.max(0.001, trimOutSec - trimInSec);
       args.push('-ss', trimInSec.toFixed(3));
       args.push('-t', durationSec.toFixed(3));
       args.push('-i', clip.filepath);
@@ -768,9 +783,29 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
       videoOut = compositeLabel;
     }
 
+    // Mix standalone timeline audio clips at their absolute timeline positions.
+    if (timelineAudioClips.length > 0) {
+      const audioLabels = [];
+      timelineAudioClips.forEach((clip, index) => {
+        const inputIndex = sequenceClips.length + index;
+        const label = `timelineaudio${index}`;
+        const delayMs = Math.max(0, Math.round(Number(clip.startOffset || 0) * 1000));
+        const volume = Number(clip.volume ?? 100) / 100;
+        const volumeStr = Number.isFinite(volume) ? Math.max(0, volume).toFixed(2) : '1.00';
+        concatFilterParts.push(
+          `[${inputIndex}:a]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,volume=${volumeStr},adelay=${delayMs}|${delayMs}[${label}]`
+        );
+        audioLabels.push(`[${label}]`);
+      });
+      concatFilterParts.push(
+        `[${audioOut}]${audioLabels.join('')}amix=inputs=${audioLabels.length + 1}:duration=first:dropout_transition=2[timelineMixedA]`
+      );
+      audioOut = 'timelineMixedA';
+    }
+
     // Mix background music if present
     if (bgMusic) {
-      const bgInputIndex = sequenceClips.length;
+      const bgInputIndex = sequenceClips.length + timelineAudioClips.length;
       args.push('-i', bgMusic.filepath);
 
       const delayMs = Math.round(bgMusic.offset * 1000);
@@ -920,6 +955,9 @@ function validateRuntimeInputs(config) {
   const videoTimelineClips = Array.isArray(config.clips)
     ? config.clips.filter((clip) => clip?.trackType === 'video' && Number(clip.trackIndex) === 1)
     : [];
+  const audioTimelineClips = Array.isArray(config.clips)
+    ? config.clips.filter((clip) => clip?.trackType === 'audio' && clip?.filepath && !/^blob:/i.test(String(clip.filepath)))
+    : [];
 
   if (videoTimelineClips.length > 0) {
     for (const [index, clip] of videoTimelineClips.entries()) {
@@ -935,6 +973,10 @@ function validateRuntimeInputs(config) {
     } else {
       errors.push('No input media path was provided.');
     }
+  }
+
+  for (const clip of audioTimelineClips) {
+    inputPaths.push(clip.filepath);
   }
 
   const audioNode = (config.nodes || []).find(
