@@ -19,7 +19,7 @@ export function useTimelineData() {
       .map((clip, sourceIndex) => ({ ...clip, sourceIndex }))
       .filter(c => c.trackType === 'video' && Number(c.trackIndex) === 1)
       .sort((a, b) => (a.startOffset ?? 0) - (b.startOffset ?? 0));
-  }, [outputClips]);
+  }, [sanitizedTimelineClips]);
 
   // ── Source duration from clips ───────────────────────────
   const sourceDuration = useMemo(() => {
