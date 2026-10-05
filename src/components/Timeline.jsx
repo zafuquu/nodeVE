@@ -899,35 +899,53 @@ export default function Timeline({
           }
         };
 
-        mediaRecorder.onstop = () => {
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-          const audioUrl = URL.createObjectURL(audioBlob);
-          const elapsedMs = Date.now() - recordingStartTimeRef.current;
-          
-          const newVoiceoverClip = sanitizeTimelineClip({
-            id: `recorded-${Date.now()}`,
-            filename: `Voiceover_${new Date().toLocaleTimeString().replace(/\s/g, '').replace(/:/g, '')}.wav`,
-            filepath: audioUrl,
-            duration: elapsedMs / 1000,
-            width: 0,
-            height: 0,
-            fps: 0,
-            aspect: 'audio',
-            trimIn: 0,
-            trimOut: elapsedMs,
-            trackType: 'audio',
-            trackIndex: 1,
-            startOffset: currentTimeRef.current,
-          });
+        mediaRecorder.onstop = async () => {
+          const elapsedMs = Math.max(0, Date.now() - recordingStartTimeRef.current);
+          const mimeType = mediaRecorder.mimeType || audioChunksRef.current[0]?.type || 'audio/webm';
+          const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+          const extension = mimeType.includes('ogg')
+            ? (mimeType.includes('opus') ? 'opus' : 'ogg')
+            : mimeType.includes('wav')
+              ? 'wav'
+              : mimeType.includes('mpeg') || mimeType.includes('mp3')
+                ? 'mp3'
+                : mimeType.includes('mp4') || mimeType.includes('m4a')
+                  ? 'm4a'
+                  : 'webm';
 
-          if (onClipsChange) {
-            onClipsChange(prev => [...prev, newVoiceoverClip]);
+          try {
+            const arrayBuffer = await audioBlob.arrayBuffer();
+            const saveResult = await window.clipForge?.saveRecording?.(new Uint8Array(arrayBuffer), extension);
+            if (!saveResult?.success || !saveResult.filepath) {
+              throw new Error(saveResult?.error || 'Unable to save voiceover recording.');
+            }
+
+            const newVoiceoverClip = sanitizeTimelineClip({
+              id: `recorded-${Date.now()}`,
+              filename: `Voiceover_${new Date().toLocaleTimeString().replace(/\s/g, '').replace(/:/g, '')}.${extension}`,
+              filepath: saveResult.filepath,
+              duration: elapsedMs / 1000,
+              width: 0,
+              height: 0,
+              fps: 0,
+              aspect: 'audio',
+              trimIn: 0,
+              trimOut: elapsedMs,
+              trackType: 'audio',
+              trackIndex: 1,
+              startOffset: currentTimeRef.current,
+            });
+
+            if (onClipsChange) {
+              onClipsChange(prev => [...prev, newVoiceoverClip]);
+            }
+          } catch (err) {
+            console.error('Failed to persist voiceover recording:', err);
+            alert(`Voiceover recording could not be saved: ${err.message || err}`);
+          } finally {
+            stream.getTracks().forEach(track => track.stop());
           }
-
-          // Clean up stream tracks
-          stream.getTracks().forEach(track => track.stop());
         };
-
         recordingStartTimeRef.current = Date.now();
         mediaRecorder.start();
         setIsRecording(true);
