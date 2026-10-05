@@ -712,27 +712,39 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
     const concatInputs = sequenceClips.map((_, i) => `[${i}:v]`).join('');
     const concatFilterParts = [];
 
-    // Scale all inputs to uniform resolution before concatenating
-    sequenceClips.forEach((clip, i) => {
-      concatFilterParts.push(
-        `[${i}:v]scale=${OUTPUT_W}:${OUTPUT_H}:force_original_aspect_ratio=increase,crop=${OUTPUT_W}:${OUTPUT_H},setsar=1,fps=${outputFps}[v${i}]`
-      );
-    });
+    // Scale V1 clips to a common canvas and insert real timeline gaps as
+    // generated black/silent segments. This preserves startOffset semantics.
+    const videoSegments = [];
+    const audioSegments = [];
+    let previousEnd = 0;
 
-    const scaledInputs = sequenceClips.map((_, i) => `[v${i}]`).join('');
-    concatFilterParts.push(
-      `${scaledInputs}concat=n=${sequenceClips.length}:v=1:a=0[concatv]`
-    );
-
-    // Normalize each audio stream to a common format. For clips without
-    // audio, synthesize silence for exactly the selected clip duration.
-    const normalizedAudioInputs = [];
     sequenceClips.forEach((clip, i) => {
+      const clipStart = Math.max(0, Number(clip.startOffset || 0));
       const trimInSec = (clip.trimIn ?? 0) / 1000;
       const trimOutSec = (clip.trimOut ?? (clip.duration * 1000)) / 1000;
       const durationSec = Math.max(0.001, trimOutSec - trimInSec);
-      const audioLabel = `seqaudio${i}`;
 
+      const gapSec = Math.max(0, clipStart - previousEnd);
+      if (gapSec > 0.001) {
+        const gapVideoLabel = `gapv${i}`;
+        const gapAudioLabel = `gapa${i}`;
+        concatFilterParts.push(
+          `color=c=black:s=${OUTPUT_W}x${OUTPUT_H}:r=${outputFps}:d=${gapSec.toFixed(3)},format=yuv420p[${gapVideoLabel}]`
+        );
+        concatFilterParts.push(
+          `anullsrc=r=48000:cl=stereo:d=${gapSec.toFixed(3)}[${gapAudioLabel}]`
+        );
+        videoSegments.push(`[${gapVideoLabel}]`);
+        audioSegments.push(`[${gapAudioLabel}]`);
+      }
+
+      const videoLabel = `v${i}`;
+      concatFilterParts.push(
+        `[${i}:v]scale=${OUTPUT_W}:${OUTPUT_H}:force_original_aspect_ratio=increase,crop=${OUTPUT_W}:${OUTPUT_H},setsar=1,fps=${outputFps}[${videoLabel}]`
+      );
+      videoSegments.push(`[${videoLabel}]`);
+
+      const audioLabel = `seqaudio${i}`;
       if (probeHasAudio(clip.filepath)) {
         concatFilterParts.push(
           `[${i}:a]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,apad,atrim=duration=${durationSec.toFixed(3)}[${audioLabel}]`
@@ -742,10 +754,15 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
           `anullsrc=r=48000:cl=stereo:d=${durationSec.toFixed(3)}[${audioLabel}]`
         );
       }
-      normalizedAudioInputs.push(`[${audioLabel}]`);
+      audioSegments.push(`[${audioLabel}]`);
+      previousEnd = clipStart + durationSec;
     });
+
     concatFilterParts.push(
-      `${normalizedAudioInputs.join('')}concat=n=${sequenceClips.length}:v=0:a=1[concata]`
+      `${videoSegments.join('')}concat=n=${videoSegments.length}:v=1:a=0[concatv]`
+    );
+    concatFilterParts.push(
+      `${audioSegments.join('')}concat=n=${audioSegments.length}:v=0:a=1[concata]`
     );
 
     let videoOut = 'concatv';
