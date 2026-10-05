@@ -208,7 +208,7 @@ export default function Timeline({
     return effectiveClips.map((clip, i) => {
       const normalized = sanitizeTimelineClip(clip, i);
       const trimIn = asTimelineNumber(normalized.trimIn, 0);
-      const duration = Math.max(0, asTimelineNumber(normalized.duration, 10));
+      const duration = Math.max(0, asTimelineNumber(normalized.duration, 0));
       const trimOut = Math.max(trimIn, asTimelineNumber(normalized.trimOut, duration * 1000));
       const effective = Math.max(getClipEffectiveDurationSec({ ...normalized, trimIn, trimOut, duration }), 0.001);
       const start = Math.max(0, asTimelineNumber(normalized.startOffset, 0));
