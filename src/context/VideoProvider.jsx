@@ -42,6 +42,7 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
   const subscribersRef = useRef(new Set());
   const rafRef = useRef(null);
   const lastTimePublishRef = useRef(0);
+  const lastRafTimestampRef = useRef(0);
 
   // ── Seek-debounce state ───────────────────────────────────
   const isSeekingRef = useRef(false);
@@ -231,7 +232,11 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
   const startRAFLoop = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
 
-    const tick = () => {
+    const tick = (timestamp = performance.now()) => {
+      const previousTimestamp = lastRafTimestampRef.current || timestamp;
+      const deltaSec = Math.max(0, Math.min(0.1, (timestamp - previousTimestamp) / 1000));
+      lastRafTimestampRef.current = timestamp;
+
       const activeIdx = activeInfoRef.current.index;
       const activeClip = activeInfoRef.current.clip;
       const video = masterVideoRef.current;
@@ -241,6 +246,11 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
 
       if (activeInfoRef.current.inGap) {
         if (video) video.pause();
+        if (isPlayingRef.current && !isSeekingRef.current) {
+          globalT = Math.min(totalDurationRef.current, globalT + deltaSec);
+          currentTimeRef.current = globalT;
+          setCurrentTime(globalT);
+        }
       } else if (video && !isSeekingRef.current) {
         const currentLocalTime = video.currentTime;
         const nativeStart = activeClip ? activeClip.trimIn / 1000 : 0;
