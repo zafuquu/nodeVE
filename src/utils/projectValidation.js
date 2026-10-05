@@ -193,8 +193,11 @@ export function validateExportProject({
   const standaloneAudioClips = (clips || []).filter(
     (clip) => String(clip?.trackType || '').toLowerCase() === 'audio'
   );
-  if (standaloneAudioClips.length > 0) {
-    errors.push('Standalone timeline audio clips are not yet supported by the FFmpeg exporter. Use the existing audio graph node for background music.');
+  for (const [index, clip] of standaloneAudioClips.entries()) {
+    const filepath = String(clip?.filepath || '');
+    if (/^blob:/i.test(filepath)) {
+      errors.push(`Timeline audio clip ${index + 1} is a browser blob URL and cannot be exported after recording. The recording must be persisted to a local media file first.`);
+    }
   }
 
   const fps = Number(settings.fps);
