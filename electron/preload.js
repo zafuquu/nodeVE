@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('clipForge', {
   openFile: () => ipcRenderer.invoke('dialog:openFile'),
   openFiles: () => ipcRenderer.invoke('dialog:openFiles'),
   saveFile: () => ipcRenderer.invoke('dialog:saveFile'),
+  saveRecording: (data) => ipcRenderer.invoke('recording:save', data),
 
   // FFmpeg
   checkGpu: () => ipcRenderer.invoke('ffmpeg:checkGpu'),
