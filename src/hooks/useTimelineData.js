@@ -91,8 +91,11 @@ export function useTimelineData() {
 
       return prev.map((c, index) => {
         if (c.id === clipId) return { ...c, trimIn, trimOut };
-        if (index > targetIndex && Number(c.trackIndex) === 1 && c.trackType === 'video') {
-          const oldStart = c.startOffset ?? 0;
+        const sameTrack =
+          c.trackType === oldClip.trackType &&
+          Number(c.trackIndex) === Number(oldClip.trackIndex);
+        const oldStart = c.startOffset ?? 0;
+        if (sameTrack && oldStart >= (oldClip.startOffset ?? 0) + oldEff) {
           return { ...c, startOffset: Math.max(0, oldStart + delta) };
         }
         return c;
