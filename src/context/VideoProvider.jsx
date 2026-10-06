@@ -39,6 +39,7 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
   const masterAudioRef = useRef(null);
   const bgMusicRef = useRef(null);
   const timelineAudioRefs = useRef(new Map());
+  const timelineVideoRefs = useRef(new Map());
 
   const subscribersRef = useRef(new Set());
   const rafRef = useRef(null);
@@ -104,14 +105,32 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
       }));
   }, [clips]);
 
-  // Compute duration and clip start/end boundaries based on effective durations
+  // All video tracks share the master timeline clock. V1 drives the
+  // master element; V2/V3 are synchronized shadow video elements.
+  const timelineVideoClips = useMemo(() => {
+    return (clips || [])
+      .map((clip, index) => sanitizeTimelineClip(clip, index))
+      .filter(c =>
+        c.trackType === 'video' &&
+        [1, 2, 3].includes(Number(c.trackIndex)) &&
+        c.filepath
+      )
+      .map(c => ({
+        ...c,
+        trackIndex: Number(c.trackIndex),
+        start: Math.max(0, asTimelineNumber(c.startOffset, 0)),
+        effectiveDuration: getClipEffectiveDurationSec(c),
+      }));
+  }, [clips]);
+
+  // Compute duration from every video track so seeking/playback cannot stop
+  // before an overlay that extends beyond the V1 base program.
   const totalDuration = useMemo(() => {
-    return resolvedClips.reduce((max, c) => {
-      const start = Math.max(0, asTimelineNumber(c.startOffset, 0));
-      const end = start + Math.max(0, asTimelineNumber(c.effectiveDuration, 0));
+    return timelineVideoClips.reduce((max, c) => {
+      const end = c.start + Math.max(0, asTimelineNumber(c.effectiveDuration, 0));
       return Math.max(max, end);
     }, 0);
-  }, [resolvedClips]);
+  }, [timelineVideoClips]);
 
   const clipsWithRange = useMemo(() => {
     return resolvedClips.map((c) => {
@@ -241,6 +260,45 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
       }
     }
   }, [activeFilepath, activeInfo.localTime, isPlaying]);
+
+  const syncTimelineVideoTracks = useCallback((timelineTime, shouldPlay) => {
+    [2, 3].forEach((trackIndex) => {
+      const video = timelineVideoRefs.current.get(trackIndex);
+      if (!video) return;
+
+      const candidates = timelineVideoClips
+        .filter(c => c.trackIndex === trackIndex)
+        .filter(c => timelineTime >= c.start && timelineTime < c.start + c.effectiveDuration)
+        .sort((a, b) => b.start - a.start);
+      const clip = candidates[0];
+
+      if (!clip) {
+        if (!video.paused) video.pause();
+        return;
+      }
+
+      const targetSrc = `media:///${String(clip.filepath).replace(/\\/g, '/')}`;
+      const localTime = Math.max(0, clip.trimIn / 1000 + (timelineTime - clip.start));
+
+      if (video.getAttribute('src') !== targetSrc) {
+        video.src = targetSrc;
+        video.load();
+        video.addEventListener('loadeddata', () => {
+          try { video.currentTime = localTime; } catch {}
+          if (shouldPlay) video.play().catch(() => {});
+        }, { once: true });
+      } else {
+        if (!Number.isFinite(video.currentTime) || Math.abs(video.currentTime - localTime) > 0.12) {
+          try { video.currentTime = localTime; } catch {}
+        }
+        if (shouldPlay) {
+          if (video.paused && video.readyState >= 2) video.play().catch(() => {});
+        } else if (!video.paused) {
+          video.pause();
+        }
+      }
+    });
+  }, [timelineVideoClips]);
 
   const syncTimelineAudio = useCallback((timelineTime, shouldPlay) => {
     const activeIds = new Set();
@@ -372,6 +430,7 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
         }
       }
 
+      syncTimelineVideoTracks(globalT, isPlayingRef.current && !isSeekingRef.current);
       syncTimelineAudio(globalT, isPlayingRef.current && !isSeekingRef.current);
 
       // Notify all canvas draw subscribers at 60fps
@@ -384,7 +443,7 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
-  }, [clipsWithRange, bgMusic, syncTimelineAudio]);
+  }, [clipsWithRange, bgMusic, syncTimelineAudio, syncTimelineVideoTracks]);
 
   // Start RAF loop on mount
   useEffect(() => {
@@ -444,6 +503,30 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
         video.currentTime = localSeekTimeSec;
       }
     }
+
+    // Seek all overlay tracks against the same global timeline position.
+    [2, 3].forEach((trackIndex) => {
+      const video = timelineVideoRefs.current.get(trackIndex);
+      if (!video) return;
+      const clip = timelineVideoClips
+        .filter(c => c.trackIndex === trackIndex)
+        .find(c => targetTime >= c.start && targetTime < c.start + c.effectiveDuration);
+      if (!clip) {
+        video.pause();
+        return;
+      }
+      const targetSrc = `media:///${String(clip.filepath).replace(/\\/g, '/')}`;
+      const localTime = Math.max(0, clip.trimIn / 1000 + (targetTime - clip.start));
+      if (video.getAttribute('src') !== targetSrc) {
+        video.src = targetSrc;
+        video.load();
+        video.addEventListener('loadeddata', () => {
+          try { video.currentTime = localTime; } catch {}
+        }, { once: true });
+      } else {
+        try { video.currentTime = localTime; } catch {}
+      }
+    });
 
     if (bgMusicRef.current && bgMusic) {
       const offset = Math.max(0, asTimelineNumber(bgMusic.offset, 0));
@@ -515,6 +598,7 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
   // ── Context Values ────────────────────────────────────────
   const stateValue = useMemo(() => ({
     videoRef: masterVideoRef,
+    timelineVideoRefs,
     audioRef: masterAudioRef,
     videoReady,
     videoSrc: resolvedClips[activeInfo.index]?.filepath ? `media:///${resolvedClips[activeInfo.index].filepath.replace(/\\/g, '/')}` : null,
@@ -549,6 +633,18 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
             crossOrigin="anonymous"
             preload="auto"
           />
+          {[2, 3].map((trackIndex) => (
+            <video
+              key={`timeline-video-track-${trackIndex}`}
+              ref={(el) => {
+                if (el) timelineVideoRefs.current.set(trackIndex, el);
+                else timelineVideoRefs.current.delete(trackIndex);
+              }}
+              playsInline
+              crossOrigin="anonymous"
+              preload="auto"
+            />
+          ))
           {timelineAudioClips.map((clip) => (
             <audio
               key={clip.id}
