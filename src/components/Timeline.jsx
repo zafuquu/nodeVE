@@ -554,8 +554,14 @@ export default function Timeline({
 
           const playheadPx = (currentTime / safeDuration) * trackWidth;
           const targetsPx = [0, playheadPx];
+          const clipTrackType = getClipTrackType(currentClipMeta);
+          const clipTrackIndex = normalizeTrackIndex(currentClipMeta.trackIndex, 1);
           clipMeta.forEach((c) => {
-            if (c.id !== clip.id) {
+            if (
+              c.id !== clip.id &&
+              getClipTrackType(c) === clipTrackType &&
+              normalizeTrackIndex(c.trackIndex, 1) === clipTrackIndex
+            ) {
               targetsPx.push((c.start / safeDuration) * trackWidth);
               targetsPx.push((c.end / safeDuration) * trackWidth);
             }
@@ -640,7 +646,11 @@ export default function Timeline({
       const targetsPx = [0, (currentTime / safeDuration) * trackWidth];
 
       renderClipMeta.forEach((target) => {
-        if (target.id !== clip.id) {
+        if (
+          target.id !== clip.id &&
+          getClipTrackType(target) === 'audio' &&
+          normalizeTrackIndex(target.trackIndex, 1) === normalizeTrackIndex(clip.trackIndex, 1)
+        ) {
           targetsPx.push((target.start / safeDuration) * trackWidth);
           targetsPx.push((target.end / safeDuration) * trackWidth);
         }
@@ -718,6 +728,32 @@ export default function Timeline({
       const trackWidth = Math.max(1, trackRef.current ? trackRef.current.getBoundingClientRect().width : (workspaceRef.current?.getBoundingClientRect().width || 1000));
       const deltaSec = (dragging.dragOffsetX || 0) / trackWidth * Math.max(0.001, totalDuration);
       const newStartOffset = Math.max(0, dragging.initialStartOffset + deltaSec);
+      const draggedMeta = clipMeta[index];
+      const draggedTrackType = dragging.initialTrackType;
+      const nextTrackIndex = draggedTrackType === 'audio'
+        ? normalizeTrackIndex(
+            dragging.initialTrackIndex + Math.round((dragging.dragOffsetY || 0) / Math.max(MIN_TRACK_ROW_HEIGHT, dragging.initialTrackHeight || (compactTracks ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT))),
+            1
+          )
+        : normalizeTrackIndex(
+            dragging.initialTrackIndex + Math.round(-(dragging.dragOffsetY || 0) / Math.max(MIN_TRACK_ROW_HEIGHT, dragging.initialTrackHeight || (compactTracks ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT))),
+            1
+          );
+      const proposedEnd = newStartOffset + (draggedMeta?.effective || getClipEffectiveDurationSec(clip));
+      const hasSameTrackCollision = timelineClips.some((candidate) => {
+        if (candidate.id === clip.id) return false;
+        const candidateType = getClipTrackType(candidate);
+        const candidateTrack = normalizeTrackIndex(candidate.trackIndex, 1);
+        if (candidateType !== draggedTrackType || candidateTrack !== nextTrackIndex) return false;
+        const candidateStart = Math.max(0, asTimelineNumber(candidate.startOffset, 0));
+        const candidateEnd = candidateStart + getClipEffectiveDurationSec(candidate);
+        return newStartOffset < candidateEnd && proposedEnd > candidateStart;
+      });
+      if (hasSameTrackCollision) {
+        setDragging(null);
+        return;
+      }
+
       const rowH = Math.max(MIN_TRACK_ROW_HEIGHT, dragging.initialTrackHeight || (compactTracks ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT));
 
       // Check if user actually dragged the linked audio mirror (vs the video clip itself)
@@ -1002,8 +1038,14 @@ export default function Timeline({
 
           // Snap Targets: playhead and other clip boundaries
           const targets = [currentTime];
+          const clipTrackType = getClipTrackType(currentClipMeta);
+          const clipTrackIndex = normalizeTrackIndex(currentClipMeta.trackIndex, 1);
           clipMeta.forEach((c, idx) => {
-            if (idx !== dragging.clipIndex) {
+            if (
+              idx !== dragging.clipIndex &&
+              getClipTrackType(c) === clipTrackType &&
+              normalizeTrackIndex(c.trackIndex, 1) === clipTrackIndex
+            ) {
               targets.push(c.start);
               targets.push(c.end);
             }
