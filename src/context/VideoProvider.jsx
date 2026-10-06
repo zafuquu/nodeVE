@@ -157,8 +157,10 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
       return { index: nextIndex, clip: null, localTime: 0, inGap: true };
     }
 
+    // After the final V1 clip, keep the global clock alive for V2/V3
+    // overlays that extend beyond the base program.
     const lastIndex = clipsWithRange.length - 1;
-    return { index: lastIndex, clip: null, localTime: 0, inGap: false };
+    return { index: lastIndex, clip: null, localTime: 0, inGap: true };
   }, [clipsWithRange, currentTime]);
 
   // Store refs to avoid stale closures in RAF loop
@@ -358,6 +360,19 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
           globalT = Math.min(totalDurationRef.current, globalT + deltaSec);
           currentTimeRef.current = globalT;
           setCurrentTime(globalT);
+          if (globalT >= totalDurationRef.current) {
+            setIsPlaying(false);
+            setCurrentTime(0);
+            currentTimeRef.current = 0;
+            [2, 3].forEach((trackIndex) => {
+              const overlay = timelineVideoRefs.current.get(trackIndex);
+              if (overlay) overlay.pause();
+            });
+            if (music) {
+              music.pause();
+              music.currentTime = 0;
+            }
+          }
         }
       } else if (video && !isSeekingRef.current) {
         const currentLocalTime = video.currentTime;
