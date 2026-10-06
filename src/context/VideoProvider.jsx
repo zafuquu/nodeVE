@@ -395,19 +395,26 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
           if (currentLocalTime >= nativeOut - 0.02) {
             const nextIdx = activeIdx + 1;
             if (nextIdx < clipsWithRange.length) {
-              // Transition to next clip
               const nextClip = clipsWithRange[nextIdx];
-              const nextStart = nextClip ? nextClip.trimIn / 1000 : 0;
-              const nextSrc = `media:///${nextClip.filepath.replace(/\\/g, '/')}`;
+              const nextStart = nextClip.trimIn / 1000;
 
-              if (video.getAttribute('src') !== nextSrc) {
-                video.src = nextSrc;
-                video.load();
+              // Preserve intentional timeline gaps instead of jumping directly
+              // to the next clip's start.
+              if (nextClip.start > globalT + 0.02) {
+                video.pause();
+                globalT = Math.min(totalDurationRef.current, globalT + deltaSec);
+                currentTimeRef.current = globalT;
+                setCurrentTime(globalT);
+              } else {
+                const nextSrc = `media:///${nextClip.filepath.replace(/\\/g, '/')}`;
+                if (video.getAttribute('src') !== nextSrc) {
+                  video.src = nextSrc;
+                  video.load();
+                }
+                video.currentTime = nextStart;
+                video.play().catch(() => {});
+                setCurrentTime(nextClip.start);
               }
-              video.currentTime = nextStart;
-              video.play().catch(() => {});
-              
-              setCurrentTime(nextClip.start);
             } else {
               // Timeline finished
               setIsPlaying(false);
@@ -499,24 +506,27 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
       index = nextIndex === -1 ? clipsWithRange.length - 1 : nextIndex;
     }
     const clip = clipsWithRange[index];
-    if (!clip) return;
-
-    const localOffset = Math.max(0, targetTime - clip.start);
-    const localSeekTimeSec = (clip.trimIn / 1000) + localOffset;
-
     const video = masterVideoRef.current;
-    const targetSrc = `media:///${clip.filepath.replace(/\\/g, '/')}`;
 
-    if (video) {
-      if (video.getAttribute('src') !== targetSrc) {
-        video.src = targetSrc;
-        video.load();
-        video.addEventListener('loadeddata', () => {
+    if (clip && targetTime >= clip.start && targetTime < clip.end) {
+      const localOffset = Math.max(0, targetTime - clip.start);
+      const localSeekTimeSec = (clip.trimIn / 1000) + localOffset;
+      const targetSrc = `media:///${clip.filepath.replace(/\\/g, '/')}`;
+
+      if (video) {
+        if (video.getAttribute('src') !== targetSrc) {
+          video.src = targetSrc;
+          video.load();
+          video.addEventListener('loadeddata', () => {
+            video.currentTime = localSeekTimeSec;
+          }, { once: true });
+        } else {
           video.currentTime = localSeekTimeSec;
-        }, { once: true });
-      } else {
-        video.currentTime = localSeekTimeSec;
+        }
       }
+    } else if (video) {
+      // No V1 frame exists at this timeline position (gap or V2/V3 tail).
+      video.pause();
     }
 
     // Seek all overlay tracks against the same global timeline position.
