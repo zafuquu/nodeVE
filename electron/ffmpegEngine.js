@@ -1048,6 +1048,16 @@ function validateRuntimeInputs(config) {
   for (const clip of audioTimelineClips) {
     inputPaths.push(clip.filepath);
   }
+  const overlayVideoClips = Array.isArray(config.clips)
+    ? config.clips.filter((clip) =>
+        clip?.trackType === 'video' &&
+        [2, 3].includes(Number(clip.trackIndex)) &&
+        clip?.filepath
+      )
+    : [];
+  for (const clip of overlayVideoClips) {
+    inputPaths.push(clip.filepath);
+  }
 
   const audioNode = (config.nodes || []).find(
     (node) => node.type === 'audio' && node.data?.filepath && !node.data?.disabled
