@@ -153,23 +153,25 @@ export function validateExportProject({
     }
   }
 
-  // The current FFmpeg sequence renderer concatenates V1 clips. Do not allow
-  // timeline positions it cannot represent, because silently collapsing gaps
-  // or overlaps would produce a different edit than the user created.
-  const v1VideoClips = (clips || [])
-    .filter((clip) => String(clip?.trackType || '').toLowerCase() === 'video' && Number(clip?.trackIndex) === 1)
-    .slice()
-    .sort((a, b) => Number(a?.startOffset || 0) - Number(b?.startOffset || 0));
+  // V1 remains the primary sequential program track. Higher video tracks
+  // are composited, so overlaps are valid across different video tracks.
+  const videoTracks = new Map();
+  for (const clip of clips || []) {
+    if (String(clip?.trackType || '').toLowerCase() !== 'video') continue;
+    const track = Number(clip?.trackIndex);
+    if (![1, 2, 3].includes(track)) continue;
+    if (!videoTracks.has(track)) videoTracks.set(track, []);
+    videoTracks.get(track).push(clip);
+  }
 
-  if (v1VideoClips.length > 0) {
-    const firstStart = Number(v1VideoClips[0]?.startOffset ?? 0);
-    if (!Number.isFinite(firstStart) || firstStart < 0) {
-      errors.push('The V1 timeline contains an invalid start offset.');
-    }
+  for (const [track, trackClips] of videoTracks.entries()) {
+    const sorted = trackClips.slice().sort(
+      (a, b) => Number(a?.startOffset || 0) - Number(b?.startOffset || 0)
+    );
 
-    for (let i = 0; i < v1VideoClips.length - 1; i += 1) {
-      const current = v1VideoClips[i];
-      const next = v1VideoClips[i + 1];
+    for (let i = 0; i < sorted.length - 1; i += 1) {
+      const current = sorted[i];
+      const next = sorted[i + 1];
       const currentStart = Number(current?.startOffset ?? 0);
       const currentTrimIn = Number(current?.trimIn ?? 0);
       const currentTrimOut = Number(current?.trimOut ?? 0);
@@ -177,12 +179,14 @@ export function validateExportProject({
       const nextStart = Number(next?.startOffset ?? 0);
 
       if (!Number.isFinite(currentEnd) || !Number.isFinite(nextStart)) {
-        errors.push('The V1 timeline contains an invalid clip position.');
+        errors.push(`The V${track} timeline contains an invalid clip position.`);
         continue;
       }
 
       if (nextStart < currentEnd - 0.001) {
-        errors.push('The V1 timeline contains overlapping clips. Overlaps on the primary V1 program track are not supported yet.');
+        errors.push(
+          `The V${track} timeline contains overlapping clips. Move one clip to another video track or separate the clips before exporting.`
+        );
         break;
       }
     }
