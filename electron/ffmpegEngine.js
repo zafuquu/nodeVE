@@ -679,6 +679,23 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
     clip?.trackType === 'audio' && clip?.filepath && !/^blob:/i.test(String(clip.filepath))
   );
 
+  // V2/V3 are composited over the rendered V1 program at their absolute
+  // timeline positions. Each higher-track clip is an independent overlay.
+  const overlayVideoClips = (config.clips || [])
+    .filter((clip) =>
+      clip?.trackType === 'video' &&
+      [2, 3].includes(Number(clip.trackIndex)) &&
+      clip?.filepath
+    )
+    .map((clip) => ({
+      ...clip,
+      trackIndex: Number(clip.trackIndex),
+      startOffset: Math.max(0, Number(clip.startOffset || 0)),
+      trimIn: Math.max(0, Number(clip.trimIn || 0)),
+      trimOut: Number(clip.trimOut ?? (Number(clip.duration || 0) * 1000)),
+    }))
+    .filter((clip) => clip.trimOut > clip.trimIn);
+
   // ── Resolve background music ────────────────────────────
   const bgMusic = resolveBackgroundMusic(nodes);
 
@@ -702,6 +719,15 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
       const trimInSec = Math.max(0, Number(clip.trimIn || 0) / 1000);
       const trimOutSec = Math.max(trimInSec, Number(clip.trimOut ?? (Number(clip.duration || 0) * 1000)) / 1000);
       const durationSec = Math.max(0.001, trimOutSec - trimInSec);
+      args.push('-ss', trimInSec.toFixed(3));
+      args.push('-t', durationSec.toFixed(3));
+      args.push('-i', clip.filepath);
+    });
+
+    // Add higher video-track inputs after standalone timeline audio.
+    overlayVideoClips.forEach((clip) => {
+      const trimInSec = clip.trimIn / 1000;
+      const durationSec = Math.max(0.001, (clip.trimOut - clip.trimIn) / 1000);
       args.push('-ss', trimInSec.toFixed(3));
       args.push('-t', durationSec.toFixed(3));
       args.push('-i', clip.filepath);
@@ -767,6 +793,33 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
 
     let videoOut = 'concatv';
     let audioOut = 'concata';
+
+    // Composite V2/V3 over the V1 program before applying node-graph layers.
+    // Later track indices are rendered above earlier ones, preserving the
+    // editor's V1 < V2 < V3 stacking order without changing the UI model.
+    if (overlayVideoClips.length > 0) {
+      let compositeLabel = videoOut;
+      const overlayBaseIndex = sequenceClips.length + timelineAudioClips.length;
+      overlayVideoClips
+        .slice()
+        .sort((a, b) => Number(a.trackIndex) - Number(b.trackIndex) || a.startOffset - b.startOffset)
+        .forEach((clip, index) => {
+          const inputIndex = overlayBaseIndex + index;
+          const trimDuration = Math.max(0.001, (clip.trimOut - clip.trimIn) / 1000);
+          const start = clip.startOffset;
+          const end = start + trimDuration;
+          const label = `overlayv${index}`;
+          const out = `timelinecomp${index}`;
+          concatFilterParts.push(
+            `[${inputIndex}:v]scale=${OUTPUT_W}:${OUTPUT_H}:force_original_aspect_ratio=increase,crop=${OUTPUT_W}:${OUTPUT_H},setsar=1,format=rgba,setpts=PTS-STARTPTS[${label}]`
+          );
+          concatFilterParts.push(
+            `[${compositeLabel}][${label}]overlay=x=0:y=0:enable='between(t,${start.toFixed(3)},${end.toFixed(3)})':eof_action=pass:format=auto[${out}]`
+          );
+          compositeLabel = out;
+        });
+      videoOut = compositeLabel;
+    }
 
     // Apply the same layer pipeline used by normal export. CONCAT's video is
     // already normalized to OUTPUT_W x OUTPUT_H, so buildLayerFilter converts
