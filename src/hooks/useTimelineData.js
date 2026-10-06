@@ -21,16 +21,18 @@ export function useTimelineData() {
       .sort((a, b) => (a.startOffset ?? 0) - (b.startOffset ?? 0));
   }, [sanitizedTimelineClips]);
 
-  // ── Source duration from clips ───────────────────────────
+  // ── Timeline duration across all video tracks ────────────
+  // V1 is the base program, but V2/V3 overlays can extend beyond it.
   const sourceDuration = useMemo(() => {
-    if (outputClips.length > 0) {
-      return outputClips.reduce((max, c) => {
-        const eff = getClipEffectiveDurationSec(c);
-        return Math.max(max, (c.startOffset ?? 0) + eff);
-      }, 0);
-    }
-    return 0;
-  }, [outputClips]);
+    const videoClips = sanitizedTimelineClips.filter(
+      c => c.trackType === 'video' && [1, 2, 3].includes(Number(c.trackIndex))
+    );
+
+    return videoClips.reduce((max, c) => {
+      const eff = getClipEffectiveDurationSec(c);
+      return Math.max(max, (c.startOffset ?? 0) + eff);
+    }, 0);
+  }, [sanitizedTimelineClips]);
   // ── Active clip info ─────────────────────────────────────
   const activeClip = sanitizedTimelineClips[activeClipIndex] || null;
 
@@ -58,19 +60,23 @@ export function useTimelineData() {
     ));
   }, []);
 
-  // ── Add clip with auto-offset after last V1 clip ─────────
+  // ── Add clip after the last clip on its own track ────────
   const addClipToTimeline = useCallback((newClip) => {
     const normalizedNewClip = sanitizeTimelineClip(newClip, timelineClips.length);
     setTimelineClips(prev => {
       const normalizedPrev = prev.map((clip, index) => sanitizeTimelineClip(clip, index));
-      const v1clips = normalizedPrev.filter(c => c.trackType === 'video' && Number(c.trackIndex) === 1);
-      const lastEnd = v1clips.reduce((max, c) => {
+      const targetType = normalizedNewClip.trackType;
+      const targetTrack = Number(normalizedNewClip.trackIndex);
+      const sameTrack = normalizedPrev.filter(
+        c => c.trackType === targetType && Number(c.trackIndex) === targetTrack
+      );
+      const lastEnd = sameTrack.reduce((max, c) => {
         const eff = getClipEffectiveDurationSec(c);
         return Math.max(max, (c.startOffset ?? 0) + eff);
       }, 0);
       return [...prev, { ...normalizedNewClip, startOffset: lastEnd }];
     });
-  }, []);
+  }, [timelineClips.length]);
 
   // ── Ripple edit: when trimming left edge, shift following clips ──
   const handleRippleTrimChange = useCallback((clipId, trimIn, trimOut) => {
