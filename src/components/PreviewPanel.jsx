@@ -7,7 +7,7 @@ import { applyLayerClipPath, computeLayerGeometry } from '../utils/canvasComposi
 import { calculatePercentagePosition } from '../utils/helpers';
 
 export default function PreviewPanel({ nodes, edges, updateNodeData, globalAspect }) {
-  const { videoRef, videoReady, srcW, srcH, subscribe, currentTime, duration, isPlaying, togglePlay, seek } = useVideo();
+  const { videoRef, timelineVideoRefs, videoReady, srcW, srcH, subscribe, currentTime, duration, isPlaying, togglePlay, seek } = useVideo();
   const layerRef = useRef(null);
   const wrapperRef = useRef(null);
   const [selectedLayerId, setSelectedLayerId] = useState(null);
@@ -125,6 +125,21 @@ export default function PreviewPanel({ nodes, edges, updateNodeData, globalAspec
                   height={bgH}
                 />
               )}
+
+              {videoReady && [3, 2].map((track) => {
+                const trackVideo = timelineVideoRefs?.current?.get(track);
+                if (!trackVideo || trackVideo.readyState < 2) return null;
+                return (
+                  <Image
+                    key={`timeline-track-${track}`}
+                    image={trackVideo}
+                    x={0}
+                    y={0}
+                    width={canvasW}
+                    height={canvasH}
+                  />
+                );
+              })}
 
               {[1, 2].map((i) => (
                 <React.Fragment key={`grid-${i}`}>
