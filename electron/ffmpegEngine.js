@@ -831,7 +831,7 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
       layerObjects.forEach((layer, index) => {
         layerFilters.push(
           ...buildLayerFilter(layer, index, overlayLabels, outputFps, {
-            inputLabel: 'concatv',
+            inputLabel: videoOut,
             inputIsOutputCanvas: true,
           })
         );
@@ -875,7 +875,7 @@ const { inputPath, outputPath, nodes, edges, gpuAvailable, settings, trim, layer
 
     // Mix background music if present
     if (bgMusic) {
-      const bgInputIndex = sequenceClips.length + timelineAudioClips.length;
+      const bgInputIndex = sequenceClips.length + timelineAudioClips.length + overlayVideoClips.length;
       args.push('-i', bgMusic.filepath);
 
       const delayMs = Math.round(bgMusic.offset * 1000);
