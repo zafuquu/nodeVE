@@ -516,7 +516,10 @@ export default function Timeline({
       // Symmetrical Slip-Trim calculation
       const deltaMs = (deltaX / trackWidth) * Math.max(0.001, totalDuration) * 1000;
 
-      const durationMs = Math.max(dragging.initialTrimOut, asTimelineNumber(clip.duration, 0) * 1000);
+      // Slip the existing trim window inside the full source duration.
+      // The current trimOut is not the source boundary; otherwise a previously
+      // trimmed clip could never slide its window toward later source frames.
+      const durationMs = Math.max(0, asTimelineNumber(clip.duration, 0) * 1000);
       const currentWidthMs = (dragging.initialTrimOut - dragging.initialTrimIn);
 
       // Slide trim window
