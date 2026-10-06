@@ -67,7 +67,6 @@ export default function PreviewPanel({ nodes, edges, updateNodeData, globalAspec
   const bgX = (canvasW - bgW) / 2;
 
   useEffect(() => {
-    if (!videoReady) return undefined;
     return subscribe(() => {
       if (layerRef.current) {
         layerRef.current.batchDraw();
@@ -126,7 +125,7 @@ export default function PreviewPanel({ nodes, edges, updateNodeData, globalAspec
                 />
               )}
 
-              {videoReady && [3, 2].map((track) => {
+              {[3, 2].map((track) => {
                 const trackVideo = timelineVideoRefs?.current?.get(track);
                 if (!trackVideo || trackVideo.readyState < 2) return null;
                 return (
