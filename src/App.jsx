@@ -262,19 +262,58 @@ function FlowEditor() {
         });
       }
 
+      const projectMediaPaths = [
+        ...(Array.isArray(flow.mediaPool) ? flow.mediaPool.map(asset => asset?.filepath) : []),
+        ...(Array.isArray(flow.clips) ? flow.clips.map(clip => clip?.filepath) : []),
+        ...loadedNodes.filter(n => n.type === 'source' || n.type === 'audio').map(n => n.data?.filepath),
+      ].filter(Boolean);
+
+      let missingMediaPaths = new Set();
+      if (projectMediaPaths.length > 0 && window.clipForge?.checkMediaPaths) {
+        try {
+          const checks = await window.clipForge.checkMediaPaths([...new Set(projectMediaPaths)]);
+          missingMediaPaths = new Set(
+            (checks || []).filter(item => !item.exists).map(item => item.filepath)
+          );
+        } catch (mediaCheckErr) {
+          console.warn('[loadFlowData] Media existence check failed:', mediaCheckErr);
+        }
+      }
+
+      if (missingMediaPaths.size > 0) {
+        console.warn(
+          '[loadFlowData] Missing media retained in project:',
+          [...missingMediaPaths]
+        );
+      }
+
       if (Array.isArray(flow.mediaPool)) {
-        media.setMediaPoolAndGenerateThumbnails(flow.mediaPool);
+        media.setMediaPoolAndGenerateThumbnails(
+          flow.mediaPool.map(asset => missingMediaPaths.has(asset?.filepath)
+            ? { ...asset, mediaMissing: true }
+            : { ...asset, mediaMissing: false })
+        );
       }
 
       const sanitizedNodes = loadedNodes.map((n) => ({
         ...n,
-        data: graph.sanitizeNodeData(n),
+        data: {
+          ...graph.sanitizeNodeData(n),
+          ...(n.type === 'source' || n.type === 'audio'
+            ? { mediaMissing: missingMediaPaths.has(n.data?.filepath) }
+            : {}),
+        },
       }));
       graph.setNodes(sanitizedNodes);
       graph.setEdges(flow.edges || []);
 
       if (Array.isArray(flow.clips)) {
-        timeline.setTimelineClips(flow.clips);
+        timeline.setTimelineClips(
+          flow.clips.map(clip => ({
+            ...clip,
+            mediaMissing: missingMediaPaths.has(clip?.filepath),
+          }))
+        );
         timeline.setActiveClipIndex(
           Number.isInteger(flow.activeClipIndex) && flow.activeClipIndex >= 0
             ? flow.activeClipIndex
