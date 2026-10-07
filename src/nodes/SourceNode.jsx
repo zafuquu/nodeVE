@@ -29,6 +29,7 @@ export default function SourceNode({ id, data, selected }) {
           duration: activeClip.duration,
           fps: activeClip.fps,
           aspect: activeClip.aspect || 'unknown',
+          mediaMissing: Boolean(activeClip.mediaMissing),
         });
       }
     } else {
