@@ -163,15 +163,32 @@ export function useMediaPool() {
     });
   }, [thumbnailsCache]);
 
-  const setMediaPoolAndGenerateThumbnails = useCallback((newMediaPool, updater) => {
-    setMediaPool(typeof newMediaPool === 'function' ? newMediaPool : newMediaPool);
-    const assets = Array.isArray(newMediaPool) ? newMediaPool : [newMediaPool];
-    assets.forEach(asset => {
-      if (asset.filepath && !thumbnailsCache[asset.filepath]) {
-        generateThumbnails(asset.filepath, asset.duration);
+  const setMediaPoolAndGenerateThumbnails = useCallback((nextValue) => {
+    setMediaPool(prev => {
+      const resolved = typeof nextValue === 'function' ? nextValue(prev) : nextValue;
+      const incoming = Array.isArray(resolved) ? resolved : [];
+      const deduped = [];
+      const seen = new Set();
+
+      for (const asset of incoming) {
+        if (!asset?.filepath) continue;
+        const key = normalizePath(asset.filepath);
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        deduped.push(asset);
       }
+
+      return deduped;
     });
-  }, [thumbnailsCache, generateThumbnails]);
+
+    if (Array.isArray(nextValue)) {
+      nextValue.forEach(asset => {
+        if (asset?.filepath && !thumbnailsCache[asset.filepath]) {
+          generateThumbnails(asset.filepath, asset.duration);
+        }
+      });
+    }
+  }, [normalizePath, thumbnailsCache, generateThumbnails]);
 
   return {
     mediaPool,
