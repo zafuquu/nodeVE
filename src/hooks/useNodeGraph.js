@@ -95,10 +95,10 @@ function sanitizeNodeData(node) {
         filename: String(data.filename || ''),
         filepath: String(data.filepath || ''),
         duration: asNumber(data.duration),
-        width: asNumber(data.width, 1920),
-        height: asNumber(data.height, 1080),
-        fps: asNumber(data.fps, 60),
-        aspect: String(data.aspect || '16:9'),
+        width: asNumber(data.width),
+        height: asNumber(data.height),
+        fps: asNumber(data.fps),
+        aspect: String(data.aspect || 'unknown'),
         scaleX: asNumber(data.scaleX, 100),
         scaleY: asNumber(data.scaleY, 100),
         posX: asNumber(data.posX, 50),
@@ -353,8 +353,8 @@ export function useNodeGraph() {
   const resolvedLayers = useMemo(() => {
     if (!debouncedHash) return [];
     const { layers } = resolveOutputLayers(nodes, edges, null, {
-      srcW: sourceNode?.data?.width || 1920,
-      srcH: sourceNode?.data?.height || 1080,
+      srcW: sourceNode?.data?.width || 0,
+      srcH: sourceNode?.data?.height || 0,
     });
     return layers;
     // eslint-disable-next-line react-hooks/exhaustive-deps
