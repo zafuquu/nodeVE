@@ -561,7 +561,13 @@ function FlowEditor() {
         );
 
         if (existingReplacementIndex !== -1) {
-          return prev.filter((_asset, index) => index !== replacementIndex);
+          return prev
+            .map((asset, index) =>
+              index === existingReplacementIndex
+                ? { ...asset, ...newAsset, id: asset.id, mediaMissing: false }
+                : asset
+            )
+            .filter((_asset, index) => index !== replacementIndex);
         }
 
         return prev.map((asset, index) =>
