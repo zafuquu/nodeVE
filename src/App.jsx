@@ -152,18 +152,23 @@ function FlowEditor() {
 
   // ── Save / Load templates ───────────────────────────────
   const handleSave = useCallback(() => {
-    const template = graph.flowToTemplate(reactFlowInstance);
-    if (!template) return;
+    const project = graph.flowToTemplate(reactFlowInstance, { includeMedia: true });
+    if (!project) return;
 
-    const json = JSON.stringify(template, null, 2);
+    project.clips = timeline.sanitizedTimelineClips;
+    project.mediaPool = media.mediaPool;
+    project.activeClipIndex = timeline.activeClipIndex;
+    project.formatVersion = 2;
+
+    const json = JSON.stringify(project, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'akumaui_template.json';
+    link.download = 'akumaui_project.json';
     link.click();
     URL.revokeObjectURL(url);
-  }, [reactFlowInstance, graph]);
+  }, [reactFlowInstance, graph, timeline.sanitizedTimelineClips, timeline.activeClipIndex, media.mediaPool]);
 
   const loadFlowData = useCallback(async (flow) => {
     if (!flow) return;
@@ -254,6 +259,10 @@ function FlowEditor() {
         });
       }
 
+      if (Array.isArray(flow.mediaPool)) {
+        media.setMediaPool(flow.mediaPool);
+      }
+
       const sanitizedNodes = loadedNodes.map((n) => ({
         ...n,
         data: graph.sanitizeNodeData(n),
@@ -261,8 +270,13 @@ function FlowEditor() {
       graph.setNodes(sanitizedNodes);
       graph.setEdges(flow.edges || []);
 
-      if (flow.clips && flow.clips.length > 0) {
+      if (Array.isArray(flow.clips)) {
         timeline.setTimelineClips(flow.clips);
+        timeline.setActiveClipIndex(
+          Number.isInteger(flow.activeClipIndex) && flow.activeClipIndex >= 0
+            ? flow.activeClipIndex
+            : 0
+        );
       } else if (flow.savedVideoPath && timeline.timelineClips.length === 0) {
         // Do not create an unprobed placeholder clip. A real timeline clip is
         // created only when media metadata is available or when the template
