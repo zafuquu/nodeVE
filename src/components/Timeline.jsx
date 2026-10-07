@@ -78,6 +78,14 @@ export default function Timeline({
   const [isTrackLocked, setIsTrackLocked] = useState(false);
   const [markers, setMarkers] = useState([]);
 
+  // Clear selection when the selected clip is removed by an external timeline
+  // update (delete, project replacement, or another edit operation).
+  useEffect(() => {
+    if (selectedClip && !timelineClips.some(clip => clip.id === selectedClip)) {
+      setSelectedClip(null);
+    }
+  }, [selectedClip, timelineClips]);
+
   const getTrackHeight = useCallback((trackDef) => {
     const fallback = compactTracks ? TRACK_ROW_HEIGHT_COMPACT : TRACK_ROW_HEIGHT;
     return Math.max(
