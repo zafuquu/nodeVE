@@ -117,6 +117,8 @@ export function validateExportProject({
 
   if (!sourceNode?.data?.filepath) {
     errors.push('No source media file is loaded.');
+  } else if (sourceNode?.data?.mediaMissing) {
+    errors.push(`Source media file is missing: ${sourceNode.data.filepath}`);
   }
 
   const sourceData = sourceNode?.data || {};
@@ -137,6 +139,9 @@ export function validateExportProject({
     if (!clip?.filepath) {
       errors.push(`Timeline clip ${index + 1} has no media path.`);
       continue;
+    }
+    if (clip.mediaMissing) {
+      errors.push(`Timeline clip ${index + 1} references missing media: ${clip.filepath}`);
     }
 
     const duration = Number(clip.duration);
