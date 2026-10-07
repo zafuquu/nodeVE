@@ -263,7 +263,7 @@ function FlowEditor() {
       }
 
       if (Array.isArray(flow.mediaPool)) {
-        media.setMediaPool(flow.mediaPool);
+        media.setMediaPoolAndGenerateThumbnails(flow.mediaPool);
       }
 
       const sanitizedNodes = loadedNodes.map((n) => ({
@@ -467,7 +467,7 @@ function FlowEditor() {
       };
     }
     return n;
-  }), [graph.nodesWithUpdater, handleDropFileOnSource, media.setMediaPool, timeline.setTimelineClips, timeline.timelineClips, timeline.activeClipIndex]);
+  }), [graph.nodesWithUpdater, handleDropFileOnSource, media.setMediaPool, media.setMediaPoolAndGenerateThumbnails, timeline.setTimelineClips, timeline.timelineClips, timeline.activeClipIndex]);
 
   return (
     <VideoProvider
