@@ -28,7 +28,7 @@ export default function SourceNode({ id, data, selected }) {
           height: activeClip.height,
           duration: activeClip.duration,
           fps: activeClip.fps,
-          aspect: activeClip.aspect || '16:9',
+          aspect: activeClip.aspect || 'unknown',
         });
       }
     } else {
@@ -40,7 +40,7 @@ export default function SourceNode({ id, data, selected }) {
           height: 0,
           duration: 0,
           fps: 0,
-          aspect: '16:9',
+          aspect: 'unknown',
         });
       }
     }
