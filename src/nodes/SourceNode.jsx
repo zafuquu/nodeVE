@@ -55,8 +55,9 @@ export default function SourceNode({ id, data, selected }) {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const videoWidth = vid.videoWidth || 1920;
-      const videoHeight = vid.videoHeight || 1080;
+      const videoWidth = vid.videoWidth || Number(data.width) || 0;
+      const videoHeight = vid.videoHeight || Number(data.height) || 0;
+      if (videoWidth <= 0 || videoHeight <= 0) return;
       const nodeWidth = canvas.width;
       const nodeHeight = canvas.height;
 
@@ -140,7 +141,7 @@ export default function SourceNode({ id, data, selected }) {
             </div>
             <div className="cf-info-row">
               <span className="info-label">Aspect</span>
-              <select className="cf-select nodrag" value={data.aspect || '16:9'}
+              <select className="cf-select nodrag" value={data.aspect || 'unknown'}
                 onChange={e => handleChange('aspect', e.target.value)}
                 style={{ width: '70px', fontSize: '11px' }}
               >
