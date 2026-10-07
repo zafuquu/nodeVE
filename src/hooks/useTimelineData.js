@@ -36,11 +36,33 @@ export function useTimelineData() {
   // ── Active clip info ─────────────────────────────────────
   const activeClip = sanitizedTimelineClips[activeClipIndex] || null;
 
+  // Keep the active index valid when clips are removed/replaced through any caller.
+  useEffect(() => {
+    setActiveClipIndex(prev => {
+      if (sanitizedTimelineClips.length === 0) return 0;
+      return Math.min(prev, sanitizedTimelineClips.length - 1);
+    });
+  }, [sanitizedTimelineClips.length]);
+
   // ── Handlers ─────────────────────────────────────────────
   const handleRemoveClip = useCallback((clipId) => {
-    setTimelineClips(prev => prev.filter(c => c.id !== clipId));
-    setActiveClipIndex(0);
-  }, []);
+    const activeId = activeClip?.id;
+    setTimelineClips(prev => {
+      if (!prev.some(c => c.id === clipId)) return prev;
+      const next = prev.filter(c => c.id !== clipId);
+
+      if (next.length === 0) {
+        setActiveClipIndex(0);
+      } else if (activeId && activeId !== clipId) {
+        const nextActiveIndex = next.findIndex(c => c.id === activeId);
+        setActiveClipIndex(nextActiveIndex >= 0 ? nextActiveIndex : Math.min(activeClipIndex, next.length - 1));
+      } else {
+        setActiveClipIndex(Math.min(activeClipIndex, next.length - 1));
+      }
+
+      return next;
+    });
+  }, [activeClip?.id, activeClipIndex]);
 
   const handleClipTrimChange = useCallback((clipId, trimIn, trimOut) => {
     setTimelineClips(prev => prev.map(c =>
