@@ -422,12 +422,32 @@ export function useNodeGraph() {
   })), [edges, deleteEdge]);
 
   // ── Save / Load template ────────────────────────────────
-  const flowToTemplate = useCallback((reactFlowInstance) => {
+  const flowToTemplate = useCallback((reactFlowInstance, options = {}) => {
     const flow = reactFlowInstance?.toObject();
     if (!flow) return null;
+
+    const includeMedia = options.includeMedia === true;
     const cleanedNodes = (flow.nodes || []).map(node => {
-      if (node.type === 'source') {
+      if (!includeMedia && node.type === 'source') {
         return {
+          ...node,
+          data: { ...node.data, filepath: '', filename: '', duration: 0, width: 0, height: 0, fps: 0 }
+        };
+      }
+      if (!includeMedia && node.type === 'audio') {
+        return { ...node, data: { ...node.data, filepath: '', filename: '', duration: 0 } };
+      }
+      return node;
+    });
+
+    return {
+      ...flow,
+      nodes: cleanedNodes,
+      savedVideoPath: includeMedia ? (sourceNode?.data?.filepath || '') : '',
+    };
+  }, [sourceNode]);
+
+  return {
           ...node,
           data: { ...node.data, filepath: '', filename: '', duration: 0, width: 0, height: 0, fps: 0 }
         };
