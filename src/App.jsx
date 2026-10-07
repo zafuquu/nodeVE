@@ -435,7 +435,7 @@ function FlowEditor() {
           fps: Number(meta.fps) || 0,
           aspect: w > h ? '16:9' : '9:16'
         };
-        media.setMediaPool(prev => [...prev, newAsset]);
+        media.upsertMediaAsset(newAsset);
         timeline.addClipToTimeline({
           ...newAsset,
           trimIn: 0,
