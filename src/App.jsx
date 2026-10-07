@@ -178,7 +178,10 @@ function FlowEditor() {
       const currentSource = graph.sourceNode;
       const currentAudio = graph.nodes.find(n => n.type === 'audio');
 
-      if (currentSource && currentSource.data?.filepath) {
+      if (!flow.savedVideoPath && currentSource && currentSource.data?.filepath) {
+        // Template files intentionally omit media, so preserve the currently
+        // loaded source/audio when applying a template. Media-backed project
+        // files must instead restore their own saved paths.
         loadedNodes = loadedNodes.map(n => {
           if (n.type === 'source') {
             return {
