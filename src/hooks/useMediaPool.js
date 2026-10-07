@@ -1,5 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
-import { sanitizeTimelineClip, getClipEffectiveDurationSec } from '../utils/timelineClips';
+import { useState, useCallback } from 'react';
 
 /**
  * Custom hook for managing media pool assets and importing files.
@@ -7,12 +6,40 @@ import { sanitizeTimelineClip, getClipEffectiveDurationSec } from '../utils/time
  */
 export function useMediaPool() {
   const [mediaPool, setMediaPool] = useState([]);
+  const normalizePath = useCallback((filepath) => String(filepath || '').replace(/\\/g, '/').replace(/\/$/, '').toLowerCase(), []);
+
+  const upsertMediaAsset = useCallback((asset) => {
+    if (!asset?.filepath) return;
+    setMediaPool(prev => {
+      const key = normalizePath(asset.filepath);
+      const index = prev.findIndex(item => normalizePath(item.filepath) === key);
+      if (index === -1) return [...prev, asset];
+      const next = [...prev];
+      next[index] = { ...next[index], ...asset, id: next[index].id };
+      return next;
+    });
+  }, [normalizePath]);
+
+  const removeMediaAsset = useCallback((filepath) => {
+    const key = normalizePath(filepath);
+    if (!key) return;
+    setMediaPool(prev => prev.filter(asset => normalizePath(asset.filepath) !== key));
+    setThumbnailsCache(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(cached => { if (normalizePath(cached) === key) delete next[cached]; });
+      return next;
+    });
+  }, [normalizePath]);
 
   const importFilePaths = useCallback(async (filepaths) => {
     if (!filepaths || filepaths.length === 0) return;
 
     const newAssets = [];
+    const seen = new Set(mediaPool.map(asset => normalizePath(asset.filepath)));
     for (const filepath of filepaths) {
+      const key = normalizePath(filepath);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
       const filename = filepath.split(/[\\/]/).pop();
       let duration = 0;
       let width = 0;
@@ -48,7 +75,7 @@ export function useMediaPool() {
     if (newAssets.length > 0) {
       setMediaPool(prev => [...prev, ...newAssets]);
     }
-  }, []);
+  }, [mediaPool, normalizePath]);
 
   const handleImportMedia = useCallback(async () => {
     if (!window.clipForge) {
@@ -92,7 +119,7 @@ export function useMediaPool() {
   const [thumbnailsCache, setThumbnailsCache] = useState({});
 
   const generateThumbnails = useCallback((filepath, duration) => {
-    if (!filepath || thumbnailsCache[filepath]) return;
+    if (!filepath || thumbnailsCache[filepath] || !Number.isFinite(Number(duration)) || Number(duration) <= 0) return;
 
     const tempVid = document.createElement('video');
     tempVid.src = `media:///${filepath.replace(/\\/g, '/')}`;
