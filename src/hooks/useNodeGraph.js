@@ -104,6 +104,7 @@ function sanitizeNodeData(node) {
         posX: asNumber(data.posX, 50),
         posY: asNumber(data.posY, 50),
         lockAspect: data.lockAspect !== false,
+        mediaMissing: Boolean(data.mediaMissing),
       };
     case 'crop':
       return {
