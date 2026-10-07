@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('clipForge', {
   exportVideo: (config) => ipcRenderer.invoke('ffmpeg:export', config),
   cancelExport: () => ipcRenderer.invoke('ffmpeg:cancel'),
   probeVideo: (filepath) => ipcRenderer.invoke('ffmpeg:probe', filepath),
+  checkMediaPaths: (filepaths) => ipcRenderer.invoke('media:checkPaths', filepaths),
   saveRecording: (data, extension) => ipcRenderer.invoke('recording:save', { data, extension }),
   getPresets: () => ipcRenderer.invoke('get-presets'),
   loadPreset: (filename) => ipcRenderer.invoke('load-preset', filename),
