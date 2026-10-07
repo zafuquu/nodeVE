@@ -1,23 +1,12 @@
 import { useState, useCallback, useMemo } from 'react';
 import { sanitizeTimelineClip, getClipEffectiveDurationSec } from '../utils/timelineClips';
 
-const DEFAULT_ASSET = {
-  id: 'default-1',
-  filename: 'sample_video.mp4',
-  filepath: 'C:/Users/erna/Downloads/YTDown_YouTube_Random-5_Media_zg6yRnohdUs_001_1080p.mp4',
-  duration: 30,
-  width: 1920,
-  height: 1080,
-  fps: 60,
-  aspect: '16:9'
-};
-
 /**
  * Custom hook for managing media pool assets and importing files.
  * Integrates with Electron's file dialog and ffprobe for metadata.
  */
 export function useMediaPool() {
-  const [mediaPool, setMediaPool] = useState([DEFAULT_ASSET]);
+  const [mediaPool, setMediaPool] = useState([]);
 
   const importFilePaths = useCallback(async (filepaths) => {
     if (!filepaths || filepaths.length === 0) return;
@@ -25,20 +14,20 @@ export function useMediaPool() {
     const newAssets = [];
     for (const filepath of filepaths) {
       const filename = filepath.split(/[\\/]/).pop();
-      let duration = 10;
-      let width = 1920;
-      let height = 1080;
-      let fps = 60;
-      let aspect = '16:9';
+      let duration = 0;
+      let width = 0;
+      let height = 0;
+      let fps = 0;
+      let aspect = 'unknown';
 
       if (window.clipForge?.probeVideo) {
         try {
           const meta = await window.clipForge.probeVideo(filepath);
-          duration = meta.duration || 10;
-          width = meta.width || 1920;
-          height = meta.height || 1080;
-          fps = meta.fps || 60;
-          aspect = width > height ? '16:9' : '9:16';
+          duration = Number(meta.duration) || 0;
+          width = Number(meta.width) || 0;
+          height = Number(meta.height) || 0;
+          fps = Number(meta.fps) || 0;
+          aspect = width > 0 && height > 0 ? (width > height ? '16:9' : '9:16') : 'unknown';
         } catch (e) {
           console.warn('[importFilePaths] Probe failed:', e);
         }
@@ -63,20 +52,7 @@ export function useMediaPool() {
 
   const handleImportMedia = useCallback(async () => {
     if (!window.clipForge) {
-      // Dummy asset for browser preview mode
-      const dummyId = Math.random().toString(36).substring(7);
-      const filename = `clip_${dummyId}.mp4`;
-      const filepath = `C:/Users/erna/Downloads/YTDown_YouTube_Random-5_Media_zg6yRnohdUs_001_1080p.mp4`;
-      setMediaPool(prev => [...prev, {
-        id: dummyId,
-        filename,
-        filepath,
-        duration: 30,
-        width: 1920,
-        height: 1080,
-        fps: 60,
-        aspect: '16:9'
-      }]);
+      console.warn('[handleImportMedia] Electron media bridge unavailable; no media was imported.');
       return;
     }
 
