@@ -548,13 +548,36 @@ function FlowEditor() {
         })
       );
 
-      media.setMediaPoolAndGenerateThumbnails(prev =>
-        prev.map(asset =>
-          normalizePath(asset.filepath) === oldKey
+      media.setMediaPoolAndGenerateThumbnails(prev => {
+        const replacementIndex = prev.findIndex(
+          asset => normalizePath(asset.filepath) === oldKey
+        );
+        if (replacementIndex === -1) return prev;
+
+        const existingReplacementIndex = prev.findIndex(
+          (asset, index) =>
+            index !== replacementIndex &&
+            normalizePath(asset.filepath) === normalizePath(filepath)
+        );
+
+        if (existingReplacementIndex !== -1) {
+          return prev.filter((_asset, index) => index !== replacementIndex);
+        }
+
+        return prev.map((asset, index) =>
+          index === replacementIndex
             ? { ...asset, ...newAsset, id: asset.id, mediaMissing: false }
             : asset
-        )
-      );
+        );
+      });
+
+      media.setThumbnailsCache(prev => {
+        const next = { ...prev };
+        Object.keys(next).forEach(cached => {
+          if (normalizePath(cached) === oldKey) delete next[cached];
+        });
+        return next;
+      });
 
       const sourceNode = graph.nodes.find(node => node.type === 'source');
       if (sourceNode) {
