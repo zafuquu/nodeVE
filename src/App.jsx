@@ -456,24 +456,51 @@ function FlowEditor() {
 
   // ── onDropFileOnSource: handler injected into source nodes ──
   const handleDropFileOnSource = useCallback(async (filepath) => {
-    if (window.clipForge?.probeVideo) {
-      try {
-        const meta = await window.clipForge.probeVideo(filepath);
-        const w = Number(meta.width) || 0;
-        const h = Number(meta.height) || 0;
-        const filename = filepath.split(/[\\/]/).pop();
-        const duration = Number(meta.duration) || 0;
+    if (!window.clipForge?.probeVideo || !filepath) return;
 
-        const newAsset = {
-          id: Math.random().toString(36).substring(7),
-          filename,
-          filepath,
-          duration,
-          width: w,
-          height: h,
-          fps: Number(meta.fps) || 0,
-          aspect: w > h ? '16:9' : '9:16'
-        };
+    try {
+      const meta = await window.clipForge.probeVideo(filepath);
+      const w = Number(meta.width) || 0;
+      const h = Number(meta.height) || 0;
+      const filename = filepath.split(/[\\/]/).pop();
+      const duration = Number(meta.duration) || 0;
+      const fps = Number(meta.fps) || 0;
+      const aspect = w > 0 && h > 0 ? (w > h ? '16:9' : '9:16') : 'unknown';
+
+      if (duration <= 0 || w <= 0 || h <= 0) {
+        throw new Error('Replacement media could not be probed with valid duration and dimensions.');
+      }
+
+      const normalizePath = (value) =>
+        String(value || '').replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
+
+      const currentSourcePath = graph.sourceNode?.data?.filepath;
+      const oldKey = normalizePath(currentSourcePath);
+      const missingSource = Boolean(
+        currentSourcePath &&
+        (
+          graph.sourceNode?.data?.mediaMissing ||
+          timeline.timelineClips.some(
+            clip =>
+              normalizePath(clip.filepath) === oldKey &&
+              clip.mediaMissing
+          )
+        )
+      );
+
+      const newAsset = {
+        id: Math.random().toString(36).substring(7),
+        filename,
+        filepath,
+        duration,
+        width: w,
+        height: h,
+        fps,
+        aspect,
+        mediaMissing: false,
+      };
+
+      if (!missingSource) {
         media.upsertMediaAsset(newAsset);
         timeline.addClipToTimeline({
           ...newAsset,
@@ -481,13 +508,77 @@ function FlowEditor() {
           trimOut: duration * 1000,
           trackType: 'video',
           trackIndex: 1,
-          startOffset: 0
+          startOffset: 0,
         });
-      } catch (e) {
-        console.error('[onDropFileOnSource] Probe failed:', e);
+        return;
       }
+
+      // Relink every project reference to the missing source. Timeline
+      // placement, track, and start offset are intentionally preserved.
+      timeline.setTimelineClips(prev =>
+        prev.map(clip => {
+          if (normalizePath(clip.filepath) !== oldKey) return clip;
+
+          const oldDurationMs = Number(clip.duration) * 1000;
+          const oldTrimIn = Math.max(0, Number(clip.trimIn) || 0);
+          const oldTrimOut = Number(clip.trimOut);
+          const sourceEndMs = duration * 1000;
+          const nextTrimIn = Math.min(oldTrimIn, Math.max(0, sourceEndMs - 1));
+          const requestedTrimOut = Number.isFinite(oldTrimOut) && oldTrimOut > 0
+            ? oldTrimOut
+            : oldDurationMs;
+          const nextTrimOut = Math.max(
+            nextTrimIn + 1,
+            Math.min(requestedTrimOut, sourceEndMs)
+          );
+
+          return {
+            ...clip,
+            filepath,
+            filename,
+            duration,
+            width: w,
+            height: h,
+            fps,
+            aspect,
+            trimIn: nextTrimIn,
+            trimOut: nextTrimOut,
+            mediaMissing: false,
+          };
+        })
+      );
+
+      media.setMediaPoolAndGenerateThumbnails(prev =>
+        prev.map(asset =>
+          normalizePath(asset.filepath) === oldKey
+            ? { ...asset, ...newAsset, id: asset.id, mediaMissing: false }
+            : asset
+        )
+      );
+
+      const sourceNode = graph.nodes.find(node => node.type === 'source');
+      if (sourceNode) {
+        graph.updateNodeData(sourceNode.id, {
+          filepath,
+          filename,
+          duration,
+          width: w,
+          height: h,
+          fps,
+          aspect,
+          mediaMissing: false,
+          codec: meta.codec || 'unknown',
+        });
+      }
+
+      console.info('[onDropFileOnSource] Relinked missing source:', {
+        from: currentSourcePath,
+        to: filepath,
+      });
+    } catch (e) {
+      console.error('[onDropFileOnSource] Probe/relink failed:', e);
     }
-  }, [media, timeline]);
+  }, [graph, media, timeline]);
 
   // Inject drop handler + undo/redo into graph nodes
   const nodesWithAllProps = useMemo(() => graph.nodesWithUpdater.map(n => {
