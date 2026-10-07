@@ -15,7 +15,7 @@ export default function SourceNode({ id, data, selected }) {
 
   // Sync node data with the active timeline clip passively
   useEffect(() => {
-    if (activeClip) {
+    if (activeClip?.trackType === 'video' && Number(activeClip.trackIndex) === 1) {
       if (
         data.filepath !== activeClip.filepath ||
         data.filename !== activeClip.filename ||
