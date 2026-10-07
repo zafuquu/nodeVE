@@ -185,6 +185,18 @@ ipcMain.handle('recording:save', async (_event, payload) => {
   }
 });
 
+ipcMain.handle('media:checkPaths', async (_event, filepaths) => {
+  const paths = Array.isArray(filepaths) ? filepaths : [];
+  return paths.map((filepath) => {
+    const normalized = String(filepath || '');
+    let exists = false;
+    try {
+      exists = Boolean(normalized) && fs.existsSync(normalized) && fs.statSync(normalized).isFile();
+    } catch {}
+    return { filepath: normalized, exists };
+  });
+});
+
 ipcMain.handle('ffmpeg:checkGpu', async () => {
   return detectNvidiaGpu();
 });
