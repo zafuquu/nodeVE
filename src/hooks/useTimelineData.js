@@ -46,23 +46,17 @@ export function useTimelineData() {
 
   // ── Handlers ─────────────────────────────────────────────
   const handleRemoveClip = useCallback((clipId) => {
-    const activeId = activeClip?.id;
-    setTimelineClips(prev => {
-      if (!prev.some(c => c.id === clipId)) return prev;
-      const next = prev.filter(c => c.id !== clipId);
+    const removeIndex = timelineClips.findIndex(c => c.id === clipId);
+    if (removeIndex === -1) return;
 
-      if (next.length === 0) {
-        setActiveClipIndex(0);
-      } else if (activeId && activeId !== clipId) {
-        const nextActiveIndex = next.findIndex(c => c.id === activeId);
-        setActiveClipIndex(nextActiveIndex >= 0 ? nextActiveIndex : Math.min(activeClipIndex, next.length - 1));
-      } else {
-        setActiveClipIndex(Math.min(activeClipIndex, next.length - 1));
-      }
-
-      return next;
+    setTimelineClips(prev => prev.filter(c => c.id !== clipId));
+    setActiveClipIndex(prev => {
+      if (timelineClips.length <= 1) return 0;
+      if (removeIndex < prev) return prev - 1;
+      if (removeIndex === prev) return Math.min(prev, timelineClips.length - 2);
+      return prev;
     });
-  }, [activeClip?.id, activeClipIndex]);
+  }, [timelineClips]);
 
   const handleClipTrimChange = useCallback((clipId, trimIn, trimOut) => {
     setTimelineClips(prev => prev.map(c =>
