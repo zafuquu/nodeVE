@@ -552,7 +552,19 @@ function FlowEditor() {
         const replacementIndex = prev.findIndex(
           asset => normalizePath(asset.filepath) === oldKey
         );
-        if (replacementIndex === -1) return prev;
+        if (replacementIndex === -1) {
+          const existingReplacementIndex = prev.findIndex(
+            asset => normalizePath(asset.filepath) === normalizePath(filepath)
+          );
+          if (existingReplacementIndex !== -1) {
+            return prev.map((asset, index) =>
+              index === existingReplacementIndex
+                ? { ...asset, ...newAsset, id: asset.id, mediaMissing: false }
+                : asset
+            );
+          }
+          return [...prev, newAsset];
+        }
 
         const existingReplacementIndex = prev.findIndex(
           (asset, index) =>
