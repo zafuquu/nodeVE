@@ -199,6 +199,8 @@ export function useMediaPool() {
     importFilePaths,
     handleImportMedia,
     handleAddFromMediaPool,
+    upsertMediaAsset,
+    removeMediaAsset,
     setMediaPoolAndGenerateThumbnails,
   };
 }
