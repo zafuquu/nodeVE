@@ -451,7 +451,8 @@ function FlowEditor() {
 
   // ── Source node data for VideoProvider ──────────────────
   const activeVideoClip =
-    timeline.activeClip?.trackType === 'video'
+    timeline.activeClip?.trackType === 'video' &&
+    Number(timeline.activeClip?.trackIndex) === 1
       ? timeline.activeClip
       : null;
   const activeFilepath = activeVideoClip?.filepath || graph.sourceNode?.data?.filepath || null;
@@ -649,7 +650,7 @@ function FlowEditor() {
       filepath={activeFilepath}
       width={activeWidth}
       height={activeHeight}
-      clips={timeline.outputClips}
+      clips={timeline.sanitizedTimelineClips}
       bgMusic={graph.bgMusicParams}
       onActiveClipChange={timeline.setActiveClipIndex}
       sourceDuration={graph.sourceNode?.data?.duration || 0}
