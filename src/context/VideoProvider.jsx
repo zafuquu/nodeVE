@@ -64,7 +64,7 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
   const resolvedClips = useMemo(() => {
     if (clips && clips.length > 0) {
       const v1clips = clips
-        .map((clip, index) => sanitizeTimelineClip(clip, index))
+        .map((clip, index) => ({ ...sanitizeTimelineClip(clip, index), sourceIndex: index }))
         .filter(c => c.trackType === 'video' && Number(c.trackIndex) === 1)
         .sort((a, b) => (a.startOffset ?? 0) - (b.startOffset ?? 0));
       return v1clips.map(c => {
