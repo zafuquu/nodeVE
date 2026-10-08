@@ -450,9 +450,13 @@ function FlowEditor() {
   }, [handleSave, graph]);
 
   // ── Source node data for VideoProvider ──────────────────
-  const activeFilepath = timeline.activeClip?.filepath || graph.sourceNode?.data?.filepath || null;
-  const activeWidth = timeline.activeClip?.width || graph.sourceNode?.data?.width || 0;
-  const activeHeight = timeline.activeClip?.height || graph.sourceNode?.data?.height || 0;
+  const activeVideoClip =
+    timeline.activeClip?.trackType === 'video'
+      ? timeline.activeClip
+      : null;
+  const activeFilepath = activeVideoClip?.filepath || graph.sourceNode?.data?.filepath || null;
+  const activeWidth = activeVideoClip?.width || graph.sourceNode?.data?.width || 0;
+  const activeHeight = activeVideoClip?.height || graph.sourceNode?.data?.height || 0;
 
   // ── onDropFileOnSource: handler injected into source nodes ──
   const handleDropFileOnSource = useCallback(async (filepath) => {
