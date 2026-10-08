@@ -160,7 +160,8 @@ export default function PreviewPanel({ nodes, edges, updateNodeData, globalAspec
                 const geo = computeLayerGeometry(layerObject, canvasW, canvasH);
                 if (!geo) return null;
                 const isSelected = selectedLayerId === layerObject.transformNodeId;
-                const sourceBounds = layerObject.sourceBounds || { x: 0, y: 0, w: srcW || 1920, h: srcH || 1080 };
+                const sourceBounds = layerObject.sourceBounds || { x: 0, y: 0, w: srcW, h: srcH };
+                if (sourceBounds.w <= 0 || sourceBounds.h <= 0) return null;
 
                 // Use Konva's native crop: extract sourceBounds region from the
                 // video and scale it to geo.w × geo.h. This avoids the stretching
