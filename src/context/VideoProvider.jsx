@@ -218,6 +218,12 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
   useEffect(() => {
     totalDurationRef.current = totalDuration;
     setMediaDuration(totalDuration);
+
+    if (currentTimeRef.current > totalDuration) {
+      currentTimeRef.current = totalDuration;
+      setCurrentTime(totalDuration);
+      if (isPlayingRef.current) setIsPlaying(false);
+    }
   }, [totalDuration]);
 
   // ── Load & Bind Master Elements ────────────────────────────
@@ -415,10 +421,19 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
                 video.play().catch(() => {});
                 setCurrentTime(nextClip.start);
               }
+            } else if (totalDurationRef.current > globalT + 0.02) {
+              // V1 ended, but V2/V3 may continue beyond the base program.
+              // Keep the global clock alive through that tail instead of
+              // incorrectly treating the final V1 clip as the timeline end.
+              video.pause();
+              globalT = Math.min(totalDurationRef.current, globalT + deltaSec);
+              currentTimeRef.current = globalT;
+              setCurrentTime(globalT);
             } else {
               // Timeline finished
               setIsPlaying(false);
               setCurrentTime(0);
+              currentTimeRef.current = 0;
               const firstClip = clipsWithRange[0];
               if (firstClip) {
                 const firstSrc = `media:///${firstClip.filepath.replace(/\\/g, '/')}`;
