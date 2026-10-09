@@ -243,29 +243,29 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
 
     if (activeFilepath) {
       const targetSrc = `media:///${activeFilepath.replace(/\\/g, '/')}`;
-      
+
       const handleLoaded = () => {
         const cInfo = activeInfoRef.current;
-        if (cInfo && cInfo.clip && cInfo.clip.filepath === activeFilepath) {
-          video.currentTime = cInfo.localTime;
-          if (isPlayingRef.current) {
-            video.play().catch(() => {});
-          }
-        }
+        // A clip can be removed, moved, or replaced while the previous media
+        // source is still loading. Never seek/play that stale source.
+        if (!cInfo?.clip || cInfo.clip.filepath !== activeFilepath) return;
+        try { video.currentTime = cInfo.localTime; } catch {}
+        if (isPlayingRef.current) video.play().catch(() => {});
       };
 
       if (video.getAttribute('src') !== targetSrc) {
-        video.src = targetSrc;
+        video.pause();
         video.addEventListener('loadeddata', handleLoaded, { once: true });
+        video.src = targetSrc;
         video.load();
-      } else {
-        if (!isPlaying) {
-          const drift = Math.abs(video.currentTime - activeInfo.localTime);
-          if (drift > 0.1) {
-            video.currentTime = activeInfo.localTime;
-          }
+      } else if (!isPlaying) {
+        const drift = Math.abs(video.currentTime - activeInfo.localTime);
+        if (drift > 0.1) {
+          try { video.currentTime = activeInfo.localTime; } catch {}
         }
       }
+
+      return () => video.removeEventListener('loadeddata', handleLoaded);
     }
   }, [activeFilepath, activeInfo.localTime, isPlaying]);
 
@@ -282,6 +282,12 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
 
       if (!clip) {
         if (!video.paused) video.pause();
+        // Do not keep the previous clip's decoded frame/source alive after
+        // a track becomes empty or a clip is removed during playback.
+        if (video.getAttribute('src')) {
+          video.removeAttribute('src');
+          video.load();
+        }
         return;
       }
 
