@@ -40,6 +40,8 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
   const bgMusicRef = useRef(null);
   const timelineAudioRefs = useRef(new Map());
   const timelineVideoRefs = useRef(new Map());
+  const timelineVideoLoadTokensRef = useRef(new Map());
+  const masterSeekTokenRef = useRef(0);
 
   const subscribersRef = useRef(new Set());
   const rafRef = useRef(null);
@@ -281,6 +283,7 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
       const clip = candidates[0];
 
       if (!clip) {
+        timelineVideoLoadTokensRef.current.set(trackIndex, (timelineVideoLoadTokensRef.current.get(trackIndex) || 0) + 1);
         if (!video.paused) video.pause();
         // Do not keep the previous clip's decoded frame/source alive after
         // a track becomes empty or a clip is removed during playback.
@@ -295,12 +298,21 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
       const localTime = Math.max(0, clip.trimIn / 1000 + (timelineTime - clip.start));
 
       if (video.getAttribute('src') !== targetSrc) {
+        const loadToken = (timelineVideoLoadTokensRef.current.get(trackIndex) || 0) + 1;
+        timelineVideoLoadTokensRef.current.set(trackIndex, loadToken);
+        const handleLoaded = () => {
+          const latestToken = timelineVideoLoadTokensRef.current.get(trackIndex);
+          const latestClip = timelineVideoClips
+            .filter(c => c.trackIndex === trackIndex)
+            .find(c => currentTimeRef.current >= c.start && currentTimeRef.current < c.start + c.effectiveDuration);
+          if (latestToken !== loadToken || video.getAttribute('src') !== targetSrc || latestClip?.filepath !== clip.filepath) return;
+          const latestLocalTime = Math.max(0, latestClip.trimIn / 1000 + (currentTimeRef.current - latestClip.start));
+          try { video.currentTime = latestLocalTime; } catch {}
+          if (shouldPlay && isPlayingRef.current && !isSeekingRef.current) video.play().catch(() => {});
+        };
+        video.addEventListener('loadeddata', handleLoaded, { once: true });
         video.src = targetSrc;
         video.load();
-        video.addEventListener('loadeddata', () => {
-          try { video.currentTime = localTime; } catch {}
-          if (shouldPlay) video.play().catch(() => {});
-        }, { once: true });
       } else {
         if (!Number.isFinite(video.currentTime) || Math.abs(video.currentTime - localTime) > 0.12) {
           try { video.currentTime = localTime; } catch {}
@@ -535,44 +547,29 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
       const targetSrc = `media:///${clip.filepath.replace(/\\/g, '/')}`;
 
       if (video) {
+        const seekToken = ++masterSeekTokenRef.current;
         if (video.getAttribute('src') !== targetSrc) {
+          const handleLoaded = () => {
+            if (masterSeekTokenRef.current !== seekToken || video.getAttribute('src') !== targetSrc) return;
+            if (Math.abs(currentTimeRef.current - targetTime) > 0.05) return;
+            try { video.currentTime = localSeekTimeSec; } catch {}
+          };
+          video.addEventListener('loadeddata', handleLoaded, { once: true });
           video.src = targetSrc;
           video.load();
-          video.addEventListener('loadeddata', () => {
-            video.currentTime = localSeekTimeSec;
-          }, { once: true });
         } else {
-          video.currentTime = localSeekTimeSec;
+          try { video.currentTime = localSeekTimeSec; } catch {}
         }
       }
     } else if (video) {
+      masterSeekTokenRef.current += 1;
       // No V1 frame exists at this timeline position (gap or V2/V3 tail).
       video.pause();
     }
 
-    // Seek all overlay tracks against the same global timeline position.
-    [2, 3].forEach((trackIndex) => {
-      const video = timelineVideoRefs.current.get(trackIndex);
-      if (!video) return;
-      const clip = timelineVideoClips
-        .filter(c => c.trackIndex === trackIndex)
-        .find(c => targetTime >= c.start && targetTime < c.start + c.effectiveDuration);
-      if (!clip) {
-        video.pause();
-        return;
-      }
-      const targetSrc = `media:///${String(clip.filepath).replace(/\\/g, '/')}`;
-      const localTime = Math.max(0, clip.trimIn / 1000 + (targetTime - clip.start));
-      if (video.getAttribute('src') !== targetSrc) {
-        video.src = targetSrc;
-        video.load();
-        video.addEventListener('loadeddata', () => {
-          try { video.currentTime = localTime; } catch {}
-        }, { once: true });
-      } else {
-        try { video.currentTime = localTime; } catch {}
-      }
-    });
+    // Reuse the guarded synchronizer so seeks into empty overlay sections also
+    // clear stale frames and rapid seeks invalidate older pending media loads.
+    syncTimelineVideoTracks(targetTime, false);
 
     if (bgMusicRef.current && bgMusic) {
       const offset = Math.max(0, asTimelineNumber(bgMusic.offset, 0));
@@ -582,7 +579,7 @@ export function VideoProvider({ children, filepath, width, height, clips = [], b
         bgMusicRef.current.currentTime = 0;
       }
     }
-  }, [clipsWithRange, totalDuration, bgMusic]);
+  }, [clipsWithRange, totalDuration, bgMusic, syncTimelineVideoTracks]);
 
   // ── Begin Seek ────────────────────────────────────────────
   const beginSeek = useCallback(() => {
