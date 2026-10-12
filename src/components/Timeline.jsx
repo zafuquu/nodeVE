@@ -832,7 +832,7 @@ export default function Timeline({
 
       setDragging(null);
     }
-  }, [dragging, totalDuration, compactTracks, effectiveClips, onClipTrackChange, onClipStartOffsetChange, onClipsChange, isLinkingEnabled]);
+  }, [dragging, totalDuration, compactTracks, effectiveClips, clipMeta, timelineClips, onClipTrackChange, onClipStartOffsetChange, onClipsChange, isLinkingEnabled]);
 
   // Trim handle drag start
   const handleTrimDown = useCallback((e, clipIndex, type) => {
