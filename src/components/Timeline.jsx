@@ -1083,7 +1083,19 @@ export default function Timeline({
           const finalTrimIn = Math.max(0, Math.min(newTrimIn, maxTrimIn));
           onClipTrimChange?.(clip.id, finalTrimIn, asTimelineNumber(clip.trimOut, asTimelineNumber(clip.duration, 0) * 1000));
           const trimDeltaSec = (finalTrimIn - dragging.initialTrimIn) / 1000;
-          onClipStartOffsetChange?.(clip.id, Math.max(0, asTimelineNumber(dragging.initialStartOffset, 0) + trimDeltaSec));
+          const nextStartOffset = Math.max(0, asTimelineNumber(dragging.initialStartOffset, 0) + trimDeltaSec);
+          onClipStartOffsetChange?.(clip.id, nextStartOffset);
+
+          // Keep an explicitly stored linked-audio offset aligned when the
+          // video clip's left edge is trimmed. Without this, older clips that
+          // already have audioStartOffset can drift out of sync.
+          if (isLinkingEnabled && onClipsChange) {
+            onClipsChange(prev => prev.map(item => (
+              item.id === clip.id
+                ? { ...item, audioStartOffset: nextStartOffset }
+                : item
+            )));
+          }
         } else {
           const clipTrimIn = asTimelineNumber(clip.trimIn, 0);
           const newTrimOut = clipTrimIn + (proposedGlobalTime - initialStart) * 1000;
@@ -1102,7 +1114,7 @@ export default function Timeline({
         window.removeEventListener('pointerup', handleUp);
       };
     }
-  }, [dragging, effectiveClips, totalDuration, isSnapEnabled, currentTime, clipMeta, onClipTrimChange, onClipStartOffsetChange]);
+  }, [dragging, effectiveClips, totalDuration, isSnapEnabled, currentTime, clipMeta, onClipTrimChange, onClipStartOffsetChange, isLinkingEnabled, onClipsChange]);
 
   // ── Broadcast ticks generation ────────────────────────
   const rulerTicks = useMemo(() => {
