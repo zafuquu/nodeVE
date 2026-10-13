@@ -893,18 +893,24 @@ export default function Timeline({
       id: idA,
       trimOut: splitTimeMs,
     }, fullIndex);
+    const splitDeltaSec = (splitTimeMs - clip.trimIn) / 1000;
     const clipB = sanitizeTimelineClip({
       ...baseClip,
       id: idB,
       trimIn: splitTimeMs,
-      startOffset: asTimelineNumber(baseClip.startOffset, 0) + (splitTimeMs - clip.trimIn) / 1000,
+      startOffset: asTimelineNumber(baseClip.startOffset, 0) + splitDeltaSec,
+      // Explicit linked-audio offsets do not automatically inherit the new
+      // video start, so advance the second half to keep its audio mirror aligned.
+      audioStartOffset: isLinkingEnabled
+        ? asTimelineNumber(baseClip.audioStartOffset, asTimelineNumber(baseClip.startOffset, 0)) + splitDeltaSec
+        : baseClip.audioStartOffset,
     }, fullIndex + 1);
 
     const newClips = [...timelineClips];
     newClips.splice(fullIndex, 1, clipA, clipB);
     onClipsChange(newClips);
     setHoverCutPos(null);
-  }, [timelineClips, clipMeta, activeTool, onClipsChange, isTrackLocked]);
+  }, [timelineClips, clipMeta, activeTool, onClipsChange, isTrackLocked, isLinkingEnabled]);
 
   const handleBladeMouseMove = useCallback((e, clipIndex) => {
     if (activeTool !== 'blade') return;
