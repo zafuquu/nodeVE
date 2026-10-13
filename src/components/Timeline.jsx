@@ -899,18 +899,18 @@ export default function Timeline({
       id: idB,
       trimIn: splitTimeMs,
       startOffset: asTimelineNumber(baseClip.startOffset, 0) + splitDeltaSec,
-      // Explicit linked-audio offsets do not automatically inherit the new
-      // video start, so advance the second half to keep its audio mirror aligned.
-      audioStartOffset: isLinkingEnabled
-        ? asTimelineNumber(baseClip.audioStartOffset, asTimelineNumber(baseClip.startOffset, 0)) + splitDeltaSec
-        : baseClip.audioStartOffset,
+      // Each video segment renders its own audio mirror, regardless of the
+      // movement-link toggle. Advance the second segment so the mirrors remain
+      // contiguous rather than overlapping after a split.
+      audioStartOffset:
+        asTimelineNumber(baseClip.audioStartOffset, asTimelineNumber(baseClip.startOffset, 0)) + splitDeltaSec,
     }, fullIndex + 1);
 
     const newClips = [...timelineClips];
     newClips.splice(fullIndex, 1, clipA, clipB);
     onClipsChange(newClips);
     setHoverCutPos(null);
-  }, [timelineClips, clipMeta, activeTool, onClipsChange, isTrackLocked, isLinkingEnabled]);
+  }, [timelineClips, clipMeta, activeTool, onClipsChange, isTrackLocked]);
 
   const handleBladeMouseMove = useCallback((e, clipIndex) => {
     if (activeTool !== 'blade') return;
