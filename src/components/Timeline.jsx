@@ -753,10 +753,23 @@ export default function Timeline({
       const proposedEnd = newStartOffset + (draggedMeta?.effective || getClipEffectiveDurationSec(clip));
       const hasSameTrackCollision = timelineClips.some((candidate) => {
         if (candidate.id === clip.id) return false;
-        const candidateType = getClipTrackType(candidate);
-        const candidateTrack = normalizeTrackIndex(candidate.trackIndex, 1);
+
+        // A video clip can also occupy an audio lane through its linked-audio
+        // mirror. Include that mirror when validating audio moves; checking only
+        // the source clip's video track misses real audio-lane collisions.
+        let candidateType = getClipTrackType(candidate);
+        let candidateTrack = normalizeTrackIndex(candidate.trackIndex, 1);
+        let candidateStart = asTimelineNumber(candidate.startOffset, 0);
+
+        if (draggedTrackType === 'audio' && candidateType === 'video') {
+          if (candidate.hasAudio === false) return false;
+          candidateTrack = normalizeTrackIndex(candidate.audioTrackIndex, 1);
+          candidateStart = asTimelineNumber(candidate.audioStartOffset, candidateStart);
+          candidateType = 'audio';
+        }
+
         if (candidateType !== draggedTrackType || candidateTrack !== nextTrackIndex) return false;
-        const candidateStart = Math.max(0, asTimelineNumber(candidate.startOffset, 0));
+        candidateStart = Math.max(0, candidateStart);
         const candidateEnd = candidateStart + getClipEffectiveDurationSec(candidate);
         return newStartOffset < candidateEnd && proposedEnd > candidateStart;
       });
